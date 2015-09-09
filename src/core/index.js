@@ -19,6 +19,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
     Container:              require('./display/Container'),
 
     // sprites
+    Image:                 require('./sprites/Image'),
     Sprite:                 require('./sprites/Sprite'),
     ParticleContainer:      require('./particles/ParticleContainer'),
     SpriteRenderer:         require('./sprites/webgl/SpriteRenderer'),
