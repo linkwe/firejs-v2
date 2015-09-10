@@ -109,10 +109,11 @@ InteractionData.prototype.stopPropagation = function ()
  * The interaction manager deals with mouse and touch events. Any DisplayObject can be interactive
  * if its interactive parameter is set to true
  * This manager also supports multitouch.
+ * 
  * @class
  * @memberof PIXI.interaction
  * @param renderer {CanvasRenderer|WebGLRenderer} A reference to the current renderer
- * @param [options] {object}
+ * @param [options] { object }
  * @param [options.autoPreventDefault=true] {boolean} Should the manager automatically prevent default browser actions.
  * @param [options.interactionFrequency=10] {number} Frequency increases the interaction events will be checked.
  */

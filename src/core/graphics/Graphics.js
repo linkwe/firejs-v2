@@ -29,7 +29,6 @@ function Graphics()
 
     /**
      * The width (thickness) of any lines drawn.
-     *
      * @member {number}
      * @default 0
      */
@@ -37,7 +36,6 @@ function Graphics()
 
     /**
      * The color of any lines drawn.
-     *
      * @member {string}
      * @default 0
      */

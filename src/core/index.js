@@ -30,6 +30,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
 
     // primitives
     Graphics:               require('./graphics/Graphics'),
+    gRect:               require('./graphics/gRect'),
     GraphicsData:           require('./graphics/GraphicsData'),
     GraphicsRenderer:       require('./graphics/webgl/GraphicsRenderer'),
 

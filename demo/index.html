@@ -22,6 +22,18 @@ var texture = PIXI.Texture.fromImage('res/h_baner.png');
 // create a new Sprite using the texture
 var bunny = new PIXI.Sprite(texture);
 
+
+
+var rect = new PIXI.gRect({
+    width:600,
+    height:500,
+    color:0xccbbaa,
+    lineWidth:50,
+    lineColor:0x000000,
+    lineAlpha:1
+});
+
+
 var bunny1 = Q('Image',{
     width:200,
     height:200,
@@ -39,6 +51,9 @@ bunny.position.y = 150;
 
 stage.addChild(bunny);
 stage.addChild(bunny1);
+
+stage.addChild(rect);
+
 
 // start animating
 // animate();

@@ -1,7 +1,52 @@
-var core = require('../core');
 
 
-function Application(){
+
+var app ;
+
+function Application(ops){
+
+    if(app) return app ;
+
+    app = this;
+
+    this.resolution = ops.resolution || 1 ;
+
+    var _w,_h;
+
+    if(ops.element){
+
+        this.element = a.element;
+        _w = this.element.clientWidth;
+        _h = this.element.clientHeight;
+
+    }else{
+
+        this.element = document.body;
+        _w = document.documentElement.clientWidth;
+        _h = document.documentElement.clientHeight;
+
+    }
+
+    this.width  = _w;//this.resolution * _w ;
+    this.height = _h;//this.resolution * _h ;
+
+    this.atyView = new core.View();
+
+    this.renderer = null;
+
+    this._lastView = null;
+
+    this.GUI = new Container();
+
+    var container = new Container();
+
+    container.addChild(this.atyView);
+
+    container.addChild(this.GUI);
+
+    this.container =container;
+
+    this.autoRender = true;
 
 
 
@@ -10,6 +55,10 @@ function Application(){
 
 
 Application.prototype.constructor = Application;
+
+Application.prototype.initControllers = function() {
+
+};
 
 module.exports = Application;
 
