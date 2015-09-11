@@ -5,14 +5,11 @@ var Graphics = require('./Graphics'),
 function gRect(ops){
 
     Graphics.call(this);
-   
     this._lineWidth = ops.lineWidth || 0 ;
     this._lineColor = ops.lineColor || 0 ;
     this._lineAlpha = ops.lineAlpha || 1 ;
-
     this.fillColor = ops.color || 0;
     this.fillAlpha = ops.fillAlpha || 1 ; 
-
     this.needupdate = false;
     this.initGraphics(ops);
 
@@ -25,7 +22,7 @@ module.exports = gRect;
 
 gRect.prototype.initGraphics = function(ops){
 
-    this._Rectangle = new math.Rectangle(0,0, ops.width||200, ops.height||200);
+    this._graphics = new math.Rectangle(0,0, ops.width||200, ops.height||200);
     this.needupdate = true;
 
 };
@@ -35,11 +32,11 @@ Object.defineProperties(gRect.prototype, {
     width: {
         get: function ()
         {
-            return this._Rectangle.width;
+            return this._graphics.width;
         },
         set: function (value)
         {
-            this._Rectangle.width = value;
+            this._graphics.width = value;
             this.needupdate = true;
         }
     },
@@ -47,11 +44,11 @@ Object.defineProperties(gRect.prototype, {
     height: {
         get: function ()
         {
-            return  this._Rectangle.height;
+            return  this._graphics.height;
         },
         set: function (value)
         {
-            this._Rectangle.height = value;
+            this._graphics.height = value;
             this.needupdate = true;
         }
     },
@@ -110,10 +107,8 @@ gRect.prototype.updateGraphics = function(){
     this.clear();
    
     this.lineStyle(this._lineWidth,this._lineColor,this._lineAlpha);
-
     this.beginFill(this.fillColor,this.fillAlpha);
-
-    this.drawShape(this._Rectangle);
+    this.drawShape(this._graphics);
 
    
     this.needupdate = false;
@@ -140,11 +135,10 @@ gRect.prototype.updateTransform = function ()
 };
 
 
-Graphics.prototype.clear = function ()
+gRect.prototype.clear = function ()
 {
-    // this.lineWidth = 0;
-    this.filling = false;
 
+    this.filling = false;
     this.dirty = true;
     this.clearDirty = true;
     this.graphicsData = [];

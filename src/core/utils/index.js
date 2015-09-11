@@ -223,6 +223,28 @@ var utils = module.exports = {
         }
     },
 
+    loadScript:function(_url,__ck){
+        if(!_url)return;
+        var 
+        head = document && (document.head || document.getElementsByTagName('head')[0]),
+        script = document.createElement('script'),
+        me = this,
+        clearSE = function(_script) {
+            _script.onload = null;
+            _script.onerror = null;
+            head.removeChild(script);
+        },
+        _loadFn = function() {
+            clearSE(script);
+            __ck();
+        };
+        script.type = 'text/javascript';
+        script.src = _url;
+        script.onload = _loadFn;
+        script.onerror = clearSE;
+        head.appendChild(script);
+    },
+
     /**
      * @todo Describe property usage
      * @private

@@ -24,15 +24,29 @@ var bunny = new PIXI.Sprite(texture);
 
 
 
-var rect = new PIXI.gRect({
-    width:600,
-    height:500,
-    color:0xccbbaa,
+// var rect = new PIXI.gRoundedRect({
+//     width:600,
+//     height:500,
+//     radius:50,
+//     color:0xccbbaa,
+//     lineWidth:50,
+//     lineColor:0x000000,
+//     lineAlpha:1
+// });
+
+var line = new PIXI.gLine({
+
+    paths:[{x:50,y:50},{x:300,y:100},{x:100,y:500}],
+
     lineWidth:50,
+
     lineColor:0x000000,
+
     lineAlpha:1
 });
 
+console.log(line)
+line.filling = false;
 
 var bunny1 = Q('Image',{
     width:200,
@@ -49,10 +63,11 @@ bunny.anchor.y = 0.5;
 bunny.position.x = 200;
 bunny.position.y = 150;
 
-stage.addChild(bunny);
-stage.addChild(bunny1);
+// stage.addChild(bunny);
+// stage.addChild(bunny1);
 
-stage.addChild(rect);
+// stage.addChild(rect);
+stage.addChild(line);
 
 
 // start animating
@@ -64,7 +79,15 @@ PIXI.ticker.shared.add(animate,5)
 
 function animate(a) {
 
-// console.log(5)
+    // rect.width += 5;
+    // if(rect.width>800)rect.width = 200;
+
+    // rect.y += 5;
+
+    // if( rect.y > 500)rect.y =0;
+    // rect.width += 5;
+
+    // console.log(5)
     // requestAnimationFrame(animate);
 
     // just for fun, let's rotate mr rabbit a little

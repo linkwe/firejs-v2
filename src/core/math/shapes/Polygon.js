@@ -36,7 +36,6 @@ function Polygon(points_)
         {
             p.push(points[i].x, points[i].y);
         }
-
         points = p;
     }
 

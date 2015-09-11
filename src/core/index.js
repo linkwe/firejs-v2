@@ -19,7 +19,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
     Container:              require('./display/Container'),
 
     // sprites
-    Image:                 require('./sprites/Image'),
+    Image:                  require('./sprites/Image'),
     Sprite:                 require('./sprites/Sprite'),
     ParticleContainer:      require('./particles/ParticleContainer'),
     SpriteRenderer:         require('./sprites/webgl/SpriteRenderer'),
@@ -30,7 +30,13 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
 
     // primitives
     Graphics:               require('./graphics/Graphics'),
-    gRect:               require('./graphics/gRect'),
+
+    gRect:                  require('./graphics/gRect'),
+    gRoundedRect:           require('./graphics/gRoundedRect'),
+    gCircle:                require('./graphics/gCircle'),
+    gEllipse:               require('./graphics/gEllipse'),
+    gLine:                  require('./graphics/gLine'),
+
     GraphicsData:           require('./graphics/GraphicsData'),
     GraphicsRenderer:       require('./graphics/webgl/GraphicsRenderer'),
 
