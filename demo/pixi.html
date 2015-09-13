@@ -16,11 +16,71 @@ document.body.appendChild(renderer.view);
 // create the root of the scene graph
 var stage = new PIXI.Container();
 
-// create a texture from an image path
-var texture = PIXI.Texture.fromImage('res/h_baner.png');
 
-// create a new Sprite using the texture
-var bunny = new PIXI.Sprite(texture);
+PIXI.loader.add([
+    {name:'im1',url:'res/1.jpg'},
+   
+]).load(function(a,b){
+
+    var aa = new PIXI.Sprite(b['im1'].texture);
+
+    aa.position.x = 300;
+    stage.addChild(aa);
+
+});
+
+
+
+// PIXI.loader.load();
+
+PIXI.loader.add([
+    {name:'aa',url:'res/2.jpg'}
+]).load(function(a,b){
+
+    var aa = new PIXI.Sprite(b['aa'].texture);
+    stage.addChild(aa);
+
+});
+// PIXI.loader.on('progress',function(a,b){
+//     console.log( a._progressChunk+'%',a.progress+'%');//._afterMiddleware.length);
+// });
+
+// PIXI.loader.on('complete',function(a,b){
+//     console.log(2)
+// });
+
+// PIXI.loader.load();
+
+
+// PIXI.loader.on('progress',function(a,b){
+//     console.log( a._progressChunk+'%',a.progress+'%');//._afterMiddleware.length);
+// });
+
+// PIXI.loader.addInj('progress',function(a,b){
+
+//     console.log('inj', a._progressChunk+'%',a.progress+'%');
+
+// });
+
+
+// .load(function(loader, resources){
+//     console.log(1)
+//     var aa = new PIXI.Sprite(resources['im1'].texture);
+//     stage.addChild(aa);
+// console.log(loader);
+// });
+
+// PIXI.loader.add([{name:'im2',url:'res/desyrel.png'}]).load(function(loader, resources){
+//     var aa = new PIXI.Sprite(resources['im2'].texture);
+//     stage.addChild(aa);
+//     console.log(2)
+
+//     // console.log(resources);
+// // console.log(resources);
+// })
+
+
+
 
 
 
@@ -45,26 +105,8 @@ var line = new PIXI.gLine({
     lineAlpha:1
 });
 
-
 line.filling = false;
 
-var bunny1 = Q('Image',{
-    width:200,
-    height:200,
-    texture:texture
-});
-
-
-// center the sprite's anchor point
-bunny.anchor.x = 0.5;
-bunny.anchor.y = 0.5;
-
-// move the sprite to the center of the screen
-bunny.position.x = 200;
-bunny.position.y = 150;
-
-// stage.addChild(bunny);
-// stage.addChild(bunny1);
 
 stage.addChild(rect);
 stage.addChild(line);

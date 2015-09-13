@@ -748,7 +748,7 @@ InteractionManager.prototype.getTouchData = function ( touchEvent , id )
  *
  * @private
  */
-InteractionManager.prototype.returnTouchData = function ( touchData , )
+InteractionManager.prototype.returnTouchData = function ( touchData )
 {
     this.interactiveDataPool.push( touchData );
 };

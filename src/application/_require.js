@@ -1,8 +1,8 @@
-var utils = require('../utils');
+var utils = require('../core').utils;
 
 var _require = function(){
 
-    var modules = [] , ms ;
+    var modules = [] , ms = [] ;
         
     var exe = function(_a){
 
@@ -23,9 +23,7 @@ var _require = function(){
 
         load:function( options, progress, complete ){
 
-           
             if( Array.isArray(options) ){
-
                 var l = options.length , count = 0 , syn = [] , other = [] , i = 0 ;
                 options.forEach(function(m){m.syn?syn.push(m):other.push(m)});
                 !function req(_i){
@@ -49,14 +47,16 @@ var _require = function(){
                                 __cak(op);
                             }
                         });
-                    }else{ b&&b() }
+                    }else{ complete&&complete() }
                 }(i);
 
-            }else{exe(a)}
+            }else{exe(options)}
         },
 
         getmodule:function(name){
-
+            return ms[name];
         }
     }
 }();
+
+module.exports = _require;

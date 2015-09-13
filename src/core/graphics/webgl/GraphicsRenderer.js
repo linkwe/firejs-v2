@@ -4,7 +4,7 @@ var utils = require('../../utils'),
     ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     WebGLGraphicsData = require('./WebGLGraphicsData'),
-    earcut = require('earcut');
+    earcut = require('./earcut');
 
 /**
  * Renders the graphics object.

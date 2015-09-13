@@ -318,15 +318,13 @@ Container.prototype.generateTexture = function (renderer, resolution, scaleMode)
  */
 Container.prototype.updateTransform = function ()
 {
-    if (!this.visible)
-    {
+    if (!this.visible) {
         return;
     }
 
     this.displayObjectUpdateTransform();
 
-    for (var i = 0, j = this.children.length; i < j; ++i)
-    {
+    for (var i = 0, j = this.children.length; i < j; ++i) {
         this.children[i].updateTransform();
     }
 };

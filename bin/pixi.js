@@ -2873,671 +2873,6 @@ function isNullOrUndefined(arg) {
 },{"punycode":4,"querystring":7}],9:[function(require,module,exports){
 'use strict';
 
-module.exports = earcut;
-
-function earcut(data, holeIndices, dim) {
-
-    dim = dim || 2;
-
-    var hasHoles = holeIndices && holeIndices.length,
-        outerLen = hasHoles ? holeIndices[0] * dim : data.length,
-        outerNode = filterPoints(data, linkedList(data, 0, outerLen, dim, true)),
-        triangles = [];
-
-    if (!outerNode) return triangles;
-
-    var minX, minY, maxX, maxY, x, y, size;
-
-    if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
-
-    // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
-    if (data.length > 80 * dim) {
-        minX = maxX = data[0];
-        minY = maxY = data[1];
-
-        for (var i = dim; i < outerLen; i += dim) {
-            x = data[i];
-            y = data[i + 1];
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
-        }
-
-        // minX, minY and size are later used to transform coords into integers for z-order calculation
-        size = Math.max(maxX - minX, maxY - minY);
-    }
-
-    earcutLinked(data, outerNode, triangles, dim, minX, minY, size);
-
-    return triangles;
-}
-
-// create a circular doubly linked list from polygon points in the specified winding order
-function linkedList(data, start, end, dim, clockwise) {
-    var sum = 0,
-        i, j, last;
-
-    // calculate original winding order of a polygon ring
-    for (i = start, j = end - dim; i < end; i += dim) {
-        sum += (data[j] - data[i]) * (data[i + 1] + data[j + 1]);
-        j = i;
-    }
-
-    // link points into circular doubly-linked list in the specified winding order
-    if (clockwise === (sum > 0)) {
-        for (i = start; i < end; i += dim) last = insertNode(i, last);
-    } else {
-        for (i = end - dim; i >= start; i -= dim) last = insertNode(i, last);
-    }
-
-    return last;
-}
-
-// eliminate colinear or duplicate points
-function filterPoints(data, start, end) {
-    if (!end) end = start;
-
-    var node = start,
-        again;
-    do {
-        again = false;
-
-        if (!node.steiner && (equals(data, node.i, node.next.i) || orient(data, node.prev.i, node.i, node.next.i) === 0)) {
-
-            // remove node
-            node.prev.next = node.next;
-            node.next.prev = node.prev;
-
-            if (node.prevZ) node.prevZ.nextZ = node.nextZ;
-            if (node.nextZ) node.nextZ.prevZ = node.prevZ;
-
-            node = end = node.prev;
-
-            if (node === node.next) return null;
-            again = true;
-
-        } else {
-            node = node.next;
-        }
-    } while (again || node !== end);
-
-    return end;
-}
-
-// main ear slicing loop which triangulates a polygon (given as a linked list)
-function earcutLinked(data, ear, triangles, dim, minX, minY, size, pass) {
-    if (!ear) return;
-
-    // interlink polygon nodes in z-order
-    if (!pass && minX !== undefined) indexCurve(data, ear, minX, minY, size);
-
-    var stop = ear,
-        prev, next;
-
-    // iterate through ears, slicing them one by one
-    while (ear.prev !== ear.next) {
-        prev = ear.prev;
-        next = ear.next;
-
-        if (isEar(data, ear, minX, minY, size)) {
-            // cut off the triangle
-            triangles.push(prev.i / dim);
-            triangles.push(ear.i / dim);
-            triangles.push(next.i / dim);
-
-            // remove ear node
-            next.prev = prev;
-            prev.next = next;
-
-            if (ear.prevZ) ear.prevZ.nextZ = ear.nextZ;
-            if (ear.nextZ) ear.nextZ.prevZ = ear.prevZ;
-
-            // skipping the next vertice leads to less sliver triangles
-            ear = next.next;
-            stop = next.next;
-
-            continue;
-        }
-
-        ear = next;
-
-        // if we looped through the whole remaining polygon and can't find any more ears
-        if (ear === stop) {
-            // try filtering points and slicing again
-            if (!pass) {
-                earcutLinked(data, filterPoints(data, ear), triangles, dim, minX, minY, size, 1);
-
-            // if this didn't work, try curing all small self-intersections locally
-            } else if (pass === 1) {
-                ear = cureLocalIntersections(data, ear, triangles, dim);
-                earcutLinked(data, ear, triangles, dim, minX, minY, size, 2);
-
-            // as a last resort, try splitting the remaining polygon into two
-            } else if (pass === 2) {
-                splitEarcut(data, ear, triangles, dim, minX, minY, size);
-            }
-
-            break;
-        }
-    }
-}
-
-// check whether a polygon node forms a valid ear with adjacent nodes
-function isEar(data, ear, minX, minY, size) {
-
-    var a = ear.prev.i,
-        b = ear.i,
-        c = ear.next.i,
-
-        ax = data[a], ay = data[a + 1],
-        bx = data[b], by = data[b + 1],
-        cx = data[c], cy = data[c + 1],
-
-        abd = ax * by - ay * bx,
-        acd = ax * cy - ay * cx,
-        cbd = cx * by - cy * bx,
-        A = abd - acd - cbd;
-
-    if (A <= 0) return false; // reflex, can't be an ear
-
-    // now make sure we don't have other points inside the potential ear;
-    // the code below is a bit verbose and repetitive but this is done for performance
-
-    var cay = cy - ay,
-        acx = ax - cx,
-        aby = ay - by,
-        bax = bx - ax,
-        i, px, py, s, t, k, node;
-
-    // if we use z-order curve hashing, iterate through the curve
-    if (minX !== undefined) {
-
-        // triangle bbox; min & max are calculated like this for speed
-        var minTX = ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx),
-            minTY = ay < by ? (ay < cy ? ay : cy) : (by < cy ? by : cy),
-            maxTX = ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx),
-            maxTY = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy),
-
-            // z-order range for the current triangle bbox;
-            minZ = zOrder(minTX, minTY, minX, minY, size),
-            maxZ = zOrder(maxTX, maxTY, minX, minY, size);
-
-        // first look for points inside the triangle in increasing z-order
-        node = ear.nextZ;
-
-        while (node && node.z <= maxZ) {
-            i = node.i;
-            node = node.nextZ;
-            if (i === a || i === c) continue;
-
-            px = data[i];
-            py = data[i + 1];
-
-            s = cay * px + acx * py - acd;
-            if (s >= 0) {
-                t = aby * px + bax * py + abd;
-                if (t >= 0) {
-                    k = A - s - t;
-                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
-                }
-            }
-        }
-
-        // then look for points in decreasing z-order
-        node = ear.prevZ;
-
-        while (node && node.z >= minZ) {
-            i = node.i;
-            node = node.prevZ;
-            if (i === a || i === c) continue;
-
-            px = data[i];
-            py = data[i + 1];
-
-            s = cay * px + acx * py - acd;
-            if (s >= 0) {
-                t = aby * px + bax * py + abd;
-                if (t >= 0) {
-                    k = A - s - t;
-                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
-                }
-            }
-        }
-
-    // if we don't use z-order curve hash, simply iterate through all other points
-    } else {
-        node = ear.next.next;
-
-        while (node !== ear.prev) {
-            i = node.i;
-            node = node.next;
-
-            px = data[i];
-            py = data[i + 1];
-
-            s = cay * px + acx * py - acd;
-            if (s >= 0) {
-                t = aby * px + bax * py + abd;
-                if (t >= 0) {
-                    k = A - s - t;
-                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
-                }
-            }
-        }
-    }
-
-    return true;
-}
-
-// go through all polygon nodes and cure small local self-intersections
-function cureLocalIntersections(data, start, triangles, dim) {
-    var node = start;
-    do {
-        var a = node.prev,
-            b = node.next.next;
-
-        // a self-intersection where edge (v[i-1],v[i]) intersects (v[i+1],v[i+2])
-        if (a.i !== b.i && intersects(data, a.i, node.i, node.next.i, b.i) &&
-                locallyInside(data, a, b) && locallyInside(data, b, a)) {
-
-            triangles.push(a.i / dim);
-            triangles.push(node.i / dim);
-            triangles.push(b.i / dim);
-
-            // remove two nodes involved
-            a.next = b;
-            b.prev = a;
-
-            var az = node.prevZ,
-                bz = node.nextZ && node.nextZ.nextZ;
-
-            if (az) az.nextZ = bz;
-            if (bz) bz.prevZ = az;
-
-            node = start = b;
-        }
-        node = node.next;
-    } while (node !== start);
-
-    return node;
-}
-
-// try splitting polygon into two and triangulate them independently
-function splitEarcut(data, start, triangles, dim, minX, minY, size) {
-    // look for a valid diagonal that divides the polygon into two
-    var a = start;
-    do {
-        var b = a.next.next;
-        while (b !== a.prev) {
-            if (a.i !== b.i && isValidDiagonal(data, a, b)) {
-                // split the polygon in two by the diagonal
-                var c = splitPolygon(a, b);
-
-                // filter colinear points around the cuts
-                a = filterPoints(data, a, a.next);
-                c = filterPoints(data, c, c.next);
-
-                // run earcut on each half
-                earcutLinked(data, a, triangles, dim, minX, minY, size);
-                earcutLinked(data, c, triangles, dim, minX, minY, size);
-                return;
-            }
-            b = b.next;
-        }
-        a = a.next;
-    } while (a !== start);
-}
-
-// link every hole into the outer loop, producing a single-ring polygon without holes
-function eliminateHoles(data, holeIndices, outerNode, dim) {
-    var queue = [],
-        i, len, start, end, list;
-
-    for (i = 0, len = holeIndices.length; i < len; i++) {
-        start = holeIndices[i] * dim;
-        end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
-        list = linkedList(data, start, end, dim, false);
-        if (list === list.next) list.steiner = true;
-        list = filterPoints(data, list);
-        if (list) queue.push(getLeftmost(data, list));
-    }
-
-    queue.sort(function (a, b) {
-        return data[a.i] - data[b.i];
-    });
-
-    // process holes from left to right
-    for (i = 0; i < queue.length; i++) {
-        eliminateHole(data, queue[i], outerNode);
-        outerNode = filterPoints(data, outerNode, outerNode.next);
-    }
-
-    return outerNode;
-}
-
-// find a bridge between vertices that connects hole with an outer ring and and link it
-function eliminateHole(data, holeNode, outerNode) {
-    outerNode = findHoleBridge(data, holeNode, outerNode);
-    if (outerNode) {
-        var b = splitPolygon(outerNode, holeNode);
-        filterPoints(data, b, b.next);
-    }
-}
-
-// David Eberly's algorithm for finding a bridge between hole and outer polygon
-function findHoleBridge(data, holeNode, outerNode) {
-    var node = outerNode,
-        i = holeNode.i,
-        px = data[i],
-        py = data[i + 1],
-        qMax = -Infinity,
-        mNode, a, b;
-
-    // find a segment intersected by a ray from the hole's leftmost point to the left;
-    // segment's endpoint with lesser x will be potential connection point
-    do {
-        a = node.i;
-        b = node.next.i;
-
-        if (py <= data[a + 1] && py >= data[b + 1]) {
-            var qx = data[a] + (py - data[a + 1]) * (data[b] - data[a]) / (data[b + 1] - data[a + 1]);
-            if (qx <= px && qx > qMax) {
-                qMax = qx;
-                mNode = data[a] < data[b] ? node : node.next;
-            }
-        }
-        node = node.next;
-    } while (node !== outerNode);
-
-    if (!mNode) return null;
-
-    // look for points strictly inside the triangle of hole point, segment intersection and endpoint;
-    // if there are no points found, we have a valid connection;
-    // otherwise choose the point of the minimum angle with the ray as connection point
-
-    var bx = data[mNode.i],
-        by = data[mNode.i + 1],
-        pbd = px * by - py * bx,
-        pcd = px * py - py * qMax,
-        cpy = py - py,
-        pcx = px - qMax,
-        pby = py - by,
-        bpx = bx - px,
-        A = pbd - pcd - (qMax * by - py * bx),
-        sign = A <= 0 ? -1 : 1,
-        stop = mNode,
-        tanMin = Infinity,
-        mx, my, amx, s, t, tan;
-
-    node = mNode.next;
-
-    while (node !== stop) {
-
-        mx = data[node.i];
-        my = data[node.i + 1];
-        amx = px - mx;
-
-        if (amx >= 0 && mx >= bx) {
-            s = (cpy * mx + pcx * my - pcd) * sign;
-            if (s >= 0) {
-                t = (pby * mx + bpx * my + pbd) * sign;
-
-                if (t >= 0 && A * sign - s - t >= 0) {
-                    tan = Math.abs(py - my) / amx; // tangential
-                    if (tan < tanMin && locallyInside(data, node, holeNode)) {
-                        mNode = node;
-                        tanMin = tan;
-                    }
-                }
-            }
-        }
-
-        node = node.next;
-    }
-
-    return mNode;
-}
-
-// interlink polygon nodes in z-order
-function indexCurve(data, start, minX, minY, size) {
-    var node = start;
-
-    do {
-        if (node.z === null) node.z = zOrder(data[node.i], data[node.i + 1], minX, minY, size);
-        node.prevZ = node.prev;
-        node.nextZ = node.next;
-        node = node.next;
-    } while (node !== start);
-
-    node.prevZ.nextZ = null;
-    node.prevZ = null;
-
-    sortLinked(node);
-}
-
-// Simon Tatham's linked list merge sort algorithm
-// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
-function sortLinked(list) {
-    var i, p, q, e, tail, numMerges, pSize, qSize,
-        inSize = 1;
-
-    do {
-        p = list;
-        list = null;
-        tail = null;
-        numMerges = 0;
-
-        while (p) {
-            numMerges++;
-            q = p;
-            pSize = 0;
-            for (i = 0; i < inSize; i++) {
-                pSize++;
-                q = q.nextZ;
-                if (!q) break;
-            }
-
-            qSize = inSize;
-
-            while (pSize > 0 || (qSize > 0 && q)) {
-
-                if (pSize === 0) {
-                    e = q;
-                    q = q.nextZ;
-                    qSize--;
-                } else if (qSize === 0 || !q) {
-                    e = p;
-                    p = p.nextZ;
-                    pSize--;
-                } else if (p.z <= q.z) {
-                    e = p;
-                    p = p.nextZ;
-                    pSize--;
-                } else {
-                    e = q;
-                    q = q.nextZ;
-                    qSize--;
-                }
-
-                if (tail) tail.nextZ = e;
-                else list = e;
-
-                e.prevZ = tail;
-                tail = e;
-            }
-
-            p = q;
-        }
-
-        tail.nextZ = null;
-        inSize *= 2;
-
-    } while (numMerges > 1);
-
-    return list;
-}
-
-// z-order of a point given coords and size of the data bounding box
-function zOrder(x, y, minX, minY, size) {
-    // coords are transformed into (0..1000) integer range
-    x = 1000 * (x - minX) / size;
-    x = (x | (x << 8)) & 0x00FF00FF;
-    x = (x | (x << 4)) & 0x0F0F0F0F;
-    x = (x | (x << 2)) & 0x33333333;
-    x = (x | (x << 1)) & 0x55555555;
-
-    y = 1000 * (y - minY) / size;
-    y = (y | (y << 8)) & 0x00FF00FF;
-    y = (y | (y << 4)) & 0x0F0F0F0F;
-    y = (y | (y << 2)) & 0x33333333;
-    y = (y | (y << 1)) & 0x55555555;
-
-    return x | (y << 1);
-}
-
-// find the leftmost node of a polygon ring
-function getLeftmost(data, start) {
-    var node = start,
-        leftmost = start;
-    do {
-        if (data[node.i] < data[leftmost.i]) leftmost = node;
-        node = node.next;
-    } while (node !== start);
-
-    return leftmost;
-}
-
-// check if a diagonal between two polygon nodes is valid (lies in polygon interior)
-function isValidDiagonal(data, a, b) {
-    return a.next.i !== b.i && a.prev.i !== b.i &&
-           !intersectsPolygon(data, a, a.i, b.i) &&
-           locallyInside(data, a, b) && locallyInside(data, b, a) &&
-           middleInside(data, a, a.i, b.i);
-}
-
-// winding order of triangle formed by 3 given points
-function orient(data, p, q, r) {
-    var o = (data[q + 1] - data[p + 1]) * (data[r] - data[q]) - (data[q] - data[p]) * (data[r + 1] - data[q + 1]);
-    return o > 0 ? 1 :
-           o < 0 ? -1 : 0;
-}
-
-// check if two points are equal
-function equals(data, p1, p2) {
-    return data[p1] === data[p2] && data[p1 + 1] === data[p2 + 1];
-}
-
-// check if two segments intersect
-function intersects(data, p1, q1, p2, q2) {
-    return orient(data, p1, q1, p2) !== orient(data, p1, q1, q2) &&
-           orient(data, p2, q2, p1) !== orient(data, p2, q2, q1);
-}
-
-// check if a polygon diagonal intersects any polygon segments
-function intersectsPolygon(data, start, a, b) {
-    var node = start;
-    do {
-        var p1 = node.i,
-            p2 = node.next.i;
-
-        if (p1 !== a && p2 !== a && p1 !== b && p2 !== b && intersects(data, p1, p2, a, b)) return true;
-
-        node = node.next;
-    } while (node !== start);
-
-    return false;
-}
-
-// check if a polygon diagonal is locally inside the polygon
-function locallyInside(data, a, b) {
-    return orient(data, a.prev.i, a.i, a.next.i) === -1 ?
-        orient(data, a.i, b.i, a.next.i) !== -1 && orient(data, a.i, a.prev.i, b.i) !== -1 :
-        orient(data, a.i, b.i, a.prev.i) === -1 || orient(data, a.i, a.next.i, b.i) === -1;
-}
-
-// check if the middle point of a polygon diagonal is inside the polygon
-function middleInside(data, start, a, b) {
-    var node = start,
-        inside = false,
-        px = (data[a] + data[b]) / 2,
-        py = (data[a + 1] + data[b + 1]) / 2;
-    do {
-        var p1 = node.i,
-            p2 = node.next.i;
-
-        if (((data[p1 + 1] > py) !== (data[p2 + 1] > py)) &&
-            (px < (data[p2] - data[p1]) * (py - data[p1 + 1]) / (data[p2 + 1] - data[p1 + 1]) + data[p1]))
-                inside = !inside;
-
-        node = node.next;
-    } while (node !== start);
-
-    return inside;
-}
-
-// link two polygon vertices with a bridge; if the vertices belong to the same ring, it splits polygon into two;
-// if one belongs to the outer ring and another to a hole, it merges it into a single ring
-function splitPolygon(a, b) {
-    var a2 = new Node(a.i),
-        b2 = new Node(b.i),
-        an = a.next,
-        bp = b.prev;
-
-    a.next = b;
-    b.prev = a;
-
-    a2.next = an;
-    an.prev = a2;
-
-    b2.next = a2;
-    a2.prev = b2;
-
-    bp.next = b2;
-    b2.prev = bp;
-
-    return b2;
-}
-
-// create a node and optionally link it with previous one (in a circular doubly linked list)
-function insertNode(i, last) {
-    var node = new Node(i);
-
-    if (!last) {
-        node.prev = node;
-        node.next = node;
-
-    } else {
-        node.next = last.next;
-        node.prev = last;
-        last.next.prev = node;
-        last.next = node;
-    }
-    return node;
-}
-
-function Node(i) {
-    // vertex coordinates
-    this.i = i;
-
-    // previous and next vertice nodes in a polygon ring
-    this.prev = null;
-    this.next = null;
-
-    // z-order curve value
-    this.z = null;
-
-    // previous and next nodes in z-order
-    this.prevZ = null;
-    this.nextZ = null;
-
-    // indicates whether this is a steiner point
-    this.steiner = false;
-}
-
-},{}],10:[function(require,module,exports){
-'use strict';
-
 //
 // We store our EE objects in a plain object whose properties are event names.
 // If `Object.create(null)` is not supported we prefix the event names with a
@@ -3612,15 +2947,13 @@ EventEmitter.prototype.listeners = function listeners(event, exists) {
 
 EventEmitter.prototype._emit = function(event , sign, a1, a2, a3, a4) {
   var _bak;
-  if(sign&16){
-    for(var i=0,l = event.length;i<l;i++){
-      if(event[i].fn.call(event[i].context,a1,a2,a3,a4)){
-        if(sign&8)_bak = true;else return true;
-      }
-    }
-    return _bak;
+  if(sign&8){
+      event.fn.call(event.context,a1,a2,a3,a4)
+  }else if(sign&16){
+    for(var i=0,l = event.length;i<l;i++)
+      event[i].fn.call(event[i].context,a1,a2,a3,a4);
   }else{
-    return !!event.fn.call(event.context,a1,a2,a3,a4)
+    event.fn.call(event.context,a1,a2,a3,a4)
   }
 }
 
@@ -3799,7 +3132,7 @@ if ('undefined' !== typeof module) {
   module.exports = EventEmitter;
 }
 
-},{}],11:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 function ToObject(val) {
@@ -3827,7 +3160,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],12:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 var async       = require('async'),
     urlParser   = require('url'),
     Resource    = require('./Resource'),
@@ -4282,7 +3615,7 @@ Loader.LOAD_TYPE = Resource.LOAD_TYPE;
 Loader.XHR_READY_STATE = Resource.XHR_READY_STATE;
 Loader.XHR_RESPONSE_TYPE = Resource.XHR_RESPONSE_TYPE;
 
-},{"./Resource":13,"async":1,"eventemitter3":10,"url":8}],13:[function(require,module,exports){
+},{"./Resource":12,"async":1,"eventemitter3":9,"url":8}],12:[function(require,module,exports){
 var EventEmitter = require('eventemitter3'),
     _url = require('url'),
     // tests is CORS is supported in XHR, if not we need to use XDR
@@ -5059,7 +4392,7 @@ function setExtMap(map, extname, val) {
     map[extname] = val;
 }
 
-},{"eventemitter3":10,"url":8}],14:[function(require,module,exports){
+},{"eventemitter3":9,"url":8}],13:[function(require,module,exports){
 module.exports = {
 
     // private property
@@ -5125,7 +4458,7 @@ module.exports = {
     }
 };
 
-},{}],15:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = require('./Loader');
 
 module.exports.Resource = require('./Resource');
@@ -5139,7 +4472,7 @@ module.exports.middleware = {
     }
 };
 
-},{"./Loader":12,"./Resource":13,"./middlewares/caching/memory":16,"./middlewares/parsing/blob":17}],16:[function(require,module,exports){
+},{"./Loader":11,"./Resource":12,"./middlewares/caching/memory":15,"./middlewares/parsing/blob":16}],15:[function(require,module,exports){
 // a simple in-memory cache for resources
 var cache = {};
 
@@ -5161,7 +4494,7 @@ module.exports = function () {
     };
 };
 
-},{}],17:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 var Resource = require('../../Resource'),
     b64 = require('../../b64');
 
@@ -5221,7 +4554,7 @@ module.exports = function () {
     };
 };
 
-},{"../../Resource":13,"../../b64":14}],18:[function(require,module,exports){
+},{"../../Resource":12,"../../b64":13}],17:[function(require,module,exports){
 module.exports={
   "name": "pixi.js",
   "version": "3.0.7",
@@ -5291,7 +4624,7 @@ module.exports={
   }
 }
 
-},{}],19:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 /**
  * Constant values used in pixi
  *
@@ -5513,7 +4846,7 @@ var CONST = {
 
 module.exports = CONST;
 
-},{"../../package.json":18}],20:[function(require,module,exports){
+},{"../../package.json":17}],19:[function(require,module,exports){
 var math = require('../math'),
     DisplayObject = require('./DisplayObject'),
     RenderTexture = require('../textures/RenderTexture'),
@@ -5834,15 +5167,13 @@ Container.prototype.generateTexture = function (renderer, resolution, scaleMode)
  */
 Container.prototype.updateTransform = function ()
 {
-    if (!this.visible)
-    {
+    if (!this.visible) {
         return;
     }
 
     this.displayObjectUpdateTransform();
 
-    for (var i = 0, j = this.children.length; i < j; ++i)
-    {
+    for (var i = 0, j = this.children.length; i < j; ++i) {
         this.children[i].updateTransform();
     }
 };
@@ -6089,7 +5420,7 @@ Container.prototype.destroy = function (destroyChildren)
     this.children = null;
 };
 
-},{"../math":34,"../textures/RenderTexture":73,"./DisplayObject":21}],21:[function(require,module,exports){
+},{"../math":34,"../textures/RenderTexture":73,"./DisplayObject":20}],20:[function(require,module,exports){
 var math = require('../math'),
     RenderTexture = require('../textures/RenderTexture'),
     EventEmitter = require('eventemitter3'),
@@ -6426,10 +5757,10 @@ DisplayObject.prototype.updateTransform = function ()
     }
 
     // multiply the alphas..
-    this.worldAlpha = this.alpha * this.parent.worldAlpha;
+    this.worldAlpha = this.alpha * this.parent.worldAlpha ;
 
     // reset the bounds each time this is called!
-    this._currentBounds = null;
+    this._currentBounds = null ;
 };
 
 // performance increase to avoid using call.. (10x faster)
@@ -6437,10 +5768,10 @@ DisplayObject.prototype.displayObjectUpdateTransform = DisplayObject.prototype.u
 
 /**
  *
- *
  * Retrieves the bounds of the displayObject as a rectangle object
  *
  * @param matrix {Matrix}
+ * 
  * @return {Rectangle} the rectangular bounding area
  */
 DisplayObject.prototype.getBounds = function (matrix) // jshint unused:false
@@ -6553,9 +5884,10 @@ DisplayObject.prototype.destroy = function ()
 
     this.worldTransform = null;
     this.filterArea = null;
+    
 };
 
-},{"../const":19,"../math":34,"../textures/RenderTexture":73,"eventemitter3":10}],22:[function(require,module,exports){
+},{"../const":18,"../math":34,"../textures/RenderTexture":73,"eventemitter3":9}],21:[function(require,module,exports){
 var Container = require('../display/Container'),
     Texture = require('../textures/Texture'),
     CanvasBuffer = require('../renderers/canvas/utils/CanvasBuffer'),
@@ -7735,7 +7067,7 @@ Graphics.prototype.destroy = function () {
     this._localBounds = null;
 };
 
-},{"../const":19,"../display/Container":20,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/canvas/utils/CanvasGraphics":47,"../textures/Texture":74,"./GraphicsData":23}],23:[function(require,module,exports){
+},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/canvas/utils/CanvasGraphics":47,"../textures/Texture":74,"./GraphicsData":22}],22:[function(require,module,exports){
 /**
  * A GraphicsData object.
  *
@@ -7825,7 +7157,7 @@ GraphicsData.prototype.destroy = function () {
     this.shape = null;
 };
 
-},{}],24:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -7891,7 +7223,7 @@ Object.defineProperties(gCircle.prototype, {
 
 
 
-},{"../math":34,"./gRect":27}],25:[function(require,module,exports){
+},{"../math":34,"./gRect":26}],24:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -7940,7 +7272,7 @@ Object.defineProperties(gEllipse.prototype, {
 
 
 
-},{"../math":34,"./gRect":27}],26:[function(require,module,exports){
+},{"../math":34,"./gRect":26}],25:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math'),
     CONST = require('../const'),
@@ -8104,7 +7436,7 @@ gLine.prototype.drawShape = function (shape)
 
     return data;
 };
-},{"../const":19,"../math":34,"./Graphics":22,"./GraphicsData":23}],27:[function(require,module,exports){
+},{"../const":18,"../math":34,"./Graphics":21,"./GraphicsData":22}],26:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math');
 
@@ -8252,7 +7584,7 @@ gRect.prototype.clear = function ()
 
     return this;
 };
-},{"../math":34,"./Graphics":22}],28:[function(require,module,exports){
+},{"../math":34,"./Graphics":21}],27:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -8291,14 +7623,14 @@ Object.defineProperties(gRoundedRect.prototype, {
 
 
 
-},{"../math":34,"./gRect":27}],29:[function(require,module,exports){
+},{"../math":34,"./gRect":26}],28:[function(require,module,exports){
 var utils = require('../../utils'),
     math = require('../../math'),
     CONST = require('../../const'),
     ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     WebGLGraphicsData = require('./WebGLGraphicsData'),
-    earcut = require('earcut');
+    earcut = require('./earcut');
 
 /**
  * Renders the graphics object.
@@ -9195,7 +8527,7 @@ GraphicsRenderer.prototype.buildPoly = function (graphicsData, webGLData)
     return true;
 };
 
-},{"../../const":19,"../../math":34,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64,"../../utils":79,"./WebGLGraphicsData":30,"earcut":9}],30:[function(require,module,exports){
+},{"../../const":18,"../../math":34,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64,"../../utils":79,"./WebGLGraphicsData":29,"./earcut":30}],29:[function(require,module,exports){
 /**
  * An object containing WebGL specific properties to be used by the WebGL renderer
  *
@@ -9313,6 +8645,671 @@ WebGLGraphicsData.prototype.destroy = function () {
     this.glIndices = null;
 };
 
+},{}],30:[function(require,module,exports){
+'use strict';
+
+module.exports = earcut;
+
+function earcut(data, holeIndices, dim) {
+
+    dim = dim || 2;
+
+    var hasHoles = holeIndices && holeIndices.length,
+        outerLen = hasHoles ? holeIndices[0] * dim : data.length,
+        outerNode = filterPoints(data, linkedList(data, 0, outerLen, dim, true)),
+        triangles = [];
+
+    if (!outerNode) return triangles;
+
+    var minX, minY, maxX, maxY, x, y, size;
+
+    if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
+
+    // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
+    if (data.length > 80 * dim) {
+        minX = maxX = data[0];
+        minY = maxY = data[1];
+
+        for (var i = dim; i < outerLen; i += dim) {
+            x = data[i];
+            y = data[i + 1];
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+
+        // minX, minY and size are later used to transform coords into integers for z-order calculation
+        size = Math.max(maxX - minX, maxY - minY);
+    }
+
+    earcutLinked(data, outerNode, triangles, dim, minX, minY, size);
+
+    return triangles;
+}
+
+// create a circular doubly linked list from polygon points in the specified winding order
+function linkedList(data, start, end, dim, clockwise) {
+    var sum = 0,
+        i, j, last;
+
+    // calculate original winding order of a polygon ring
+    for (i = start, j = end - dim; i < end; i += dim) {
+        sum += (data[j] - data[i]) * (data[i + 1] + data[j + 1]);
+        j = i;
+    }
+
+    // link points into circular doubly-linked list in the specified winding order
+    if (clockwise === (sum > 0)) {
+        for (i = start; i < end; i += dim) last = insertNode(i, last);
+    } else {
+        for (i = end - dim; i >= start; i -= dim) last = insertNode(i, last);
+    }
+
+    return last;
+}
+
+// eliminate colinear or duplicate points
+function filterPoints(data, start, end) {
+    if (!end) end = start;
+
+    var node = start,
+        again;
+    do {
+        again = false;
+
+        if (!node.steiner && (equals(data, node.i, node.next.i) || orient(data, node.prev.i, node.i, node.next.i) === 0)) {
+
+            // remove node
+            node.prev.next = node.next;
+            node.next.prev = node.prev;
+
+            if (node.prevZ) node.prevZ.nextZ = node.nextZ;
+            if (node.nextZ) node.nextZ.prevZ = node.prevZ;
+
+            node = end = node.prev;
+
+            if (node === node.next) return null;
+            again = true;
+
+        } else {
+            node = node.next;
+        }
+    } while (again || node !== end);
+
+    return end;
+}
+
+// main ear slicing loop which triangulates a polygon (given as a linked list)
+function earcutLinked(data, ear, triangles, dim, minX, minY, size, pass) {
+    if (!ear) return;
+
+    // interlink polygon nodes in z-order
+    if (!pass && minX !== undefined) indexCurve(data, ear, minX, minY, size);
+
+    var stop = ear,
+        prev, next;
+
+    // iterate through ears, slicing them one by one
+    while (ear.prev !== ear.next) {
+        prev = ear.prev;
+        next = ear.next;
+
+        if (isEar(data, ear, minX, minY, size)) {
+            // cut off the triangle
+            triangles.push(prev.i / dim);
+            triangles.push(ear.i / dim);
+            triangles.push(next.i / dim);
+
+            // remove ear node
+            next.prev = prev;
+            prev.next = next;
+
+            if (ear.prevZ) ear.prevZ.nextZ = ear.nextZ;
+            if (ear.nextZ) ear.nextZ.prevZ = ear.prevZ;
+
+            // skipping the next vertice leads to less sliver triangles
+            ear = next.next;
+            stop = next.next;
+
+            continue;
+        }
+
+        ear = next;
+
+        // if we looped through the whole remaining polygon and can't find any more ears
+        if (ear === stop) {
+            // try filtering points and slicing again
+            if (!pass) {
+                earcutLinked(data, filterPoints(data, ear), triangles, dim, minX, minY, size, 1);
+
+            // if this didn't work, try curing all small self-intersections locally
+            } else if (pass === 1) {
+                ear = cureLocalIntersections(data, ear, triangles, dim);
+                earcutLinked(data, ear, triangles, dim, minX, minY, size, 2);
+
+            // as a last resort, try splitting the remaining polygon into two
+            } else if (pass === 2) {
+                splitEarcut(data, ear, triangles, dim, minX, minY, size);
+            }
+
+            break;
+        }
+    }
+}
+
+// check whether a polygon node forms a valid ear with adjacent nodes
+function isEar(data, ear, minX, minY, size) {
+
+    var a = ear.prev.i,
+        b = ear.i,
+        c = ear.next.i,
+
+        ax = data[a], ay = data[a + 1],
+        bx = data[b], by = data[b + 1],
+        cx = data[c], cy = data[c + 1],
+
+        abd = ax * by - ay * bx,
+        acd = ax * cy - ay * cx,
+        cbd = cx * by - cy * bx,
+        A = abd - acd - cbd;
+
+    if (A <= 0) return false; // reflex, can't be an ear
+
+    // now make sure we don't have other points inside the potential ear;
+    // the code below is a bit verbose and repetitive but this is done for performance
+
+    var cay = cy - ay,
+        acx = ax - cx,
+        aby = ay - by,
+        bax = bx - ax,
+        i, px, py, s, t, k, node;
+
+    // if we use z-order curve hashing, iterate through the curve
+    if (minX !== undefined) {
+
+        // triangle bbox; min & max are calculated like this for speed
+        var minTX = ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx),
+            minTY = ay < by ? (ay < cy ? ay : cy) : (by < cy ? by : cy),
+            maxTX = ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx),
+            maxTY = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy),
+
+            // z-order range for the current triangle bbox;
+            minZ = zOrder(minTX, minTY, minX, minY, size),
+            maxZ = zOrder(maxTX, maxTY, minX, minY, size);
+
+        // first look for points inside the triangle in increasing z-order
+        node = ear.nextZ;
+
+        while (node && node.z <= maxZ) {
+            i = node.i;
+            node = node.nextZ;
+            if (i === a || i === c) continue;
+
+            px = data[i];
+            py = data[i + 1];
+
+            s = cay * px + acx * py - acd;
+            if (s >= 0) {
+                t = aby * px + bax * py + abd;
+                if (t >= 0) {
+                    k = A - s - t;
+                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
+                }
+            }
+        }
+
+        // then look for points in decreasing z-order
+        node = ear.prevZ;
+
+        while (node && node.z >= minZ) {
+            i = node.i;
+            node = node.prevZ;
+            if (i === a || i === c) continue;
+
+            px = data[i];
+            py = data[i + 1];
+
+            s = cay * px + acx * py - acd;
+            if (s >= 0) {
+                t = aby * px + bax * py + abd;
+                if (t >= 0) {
+                    k = A - s - t;
+                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
+                }
+            }
+        }
+
+    // if we don't use z-order curve hash, simply iterate through all other points
+    } else {
+        node = ear.next.next;
+
+        while (node !== ear.prev) {
+            i = node.i;
+            node = node.next;
+
+            px = data[i];
+            py = data[i + 1];
+
+            s = cay * px + acx * py - acd;
+            if (s >= 0) {
+                t = aby * px + bax * py + abd;
+                if (t >= 0) {
+                    k = A - s - t;
+                    if ((k >= 0) && ((s && t) || (s && k) || (t && k))) return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+// go through all polygon nodes and cure small local self-intersections
+function cureLocalIntersections(data, start, triangles, dim) {
+    var node = start;
+    do {
+        var a = node.prev,
+            b = node.next.next;
+
+        // a self-intersection where edge (v[i-1],v[i]) intersects (v[i+1],v[i+2])
+        if (a.i !== b.i && intersects(data, a.i, node.i, node.next.i, b.i) &&
+                locallyInside(data, a, b) && locallyInside(data, b, a)) {
+
+            triangles.push(a.i / dim);
+            triangles.push(node.i / dim);
+            triangles.push(b.i / dim);
+
+            // remove two nodes involved
+            a.next = b;
+            b.prev = a;
+
+            var az = node.prevZ,
+                bz = node.nextZ && node.nextZ.nextZ;
+
+            if (az) az.nextZ = bz;
+            if (bz) bz.prevZ = az;
+
+            node = start = b;
+        }
+        node = node.next;
+    } while (node !== start);
+
+    return node;
+}
+
+// try splitting polygon into two and triangulate them independently
+function splitEarcut(data, start, triangles, dim, minX, minY, size) {
+    // look for a valid diagonal that divides the polygon into two
+    var a = start;
+    do {
+        var b = a.next.next;
+        while (b !== a.prev) {
+            if (a.i !== b.i && isValidDiagonal(data, a, b)) {
+                // split the polygon in two by the diagonal
+                var c = splitPolygon(a, b);
+
+                // filter colinear points around the cuts
+                a = filterPoints(data, a, a.next);
+                c = filterPoints(data, c, c.next);
+
+                // run earcut on each half
+                earcutLinked(data, a, triangles, dim, minX, minY, size);
+                earcutLinked(data, c, triangles, dim, minX, minY, size);
+                return;
+            }
+            b = b.next;
+        }
+        a = a.next;
+    } while (a !== start);
+}
+
+// link every hole into the outer loop, producing a single-ring polygon without holes
+function eliminateHoles(data, holeIndices, outerNode, dim) {
+    var queue = [],
+        i, len, start, end, list;
+
+    for (i = 0, len = holeIndices.length; i < len; i++) {
+        start = holeIndices[i] * dim;
+        end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
+        list = linkedList(data, start, end, dim, false);
+        if (list === list.next) list.steiner = true;
+        list = filterPoints(data, list);
+        if (list) queue.push(getLeftmost(data, list));
+    }
+
+    queue.sort(function (a, b) {
+        return data[a.i] - data[b.i];
+    });
+
+    // process holes from left to right
+    for (i = 0; i < queue.length; i++) {
+        eliminateHole(data, queue[i], outerNode);
+        outerNode = filterPoints(data, outerNode, outerNode.next);
+    }
+
+    return outerNode;
+}
+
+// find a bridge between vertices that connects hole with an outer ring and and link it
+function eliminateHole(data, holeNode, outerNode) {
+    outerNode = findHoleBridge(data, holeNode, outerNode);
+    if (outerNode) {
+        var b = splitPolygon(outerNode, holeNode);
+        filterPoints(data, b, b.next);
+    }
+}
+
+// David Eberly's algorithm for finding a bridge between hole and outer polygon
+function findHoleBridge(data, holeNode, outerNode) {
+    var node = outerNode,
+        i = holeNode.i,
+        px = data[i],
+        py = data[i + 1],
+        qMax = -Infinity,
+        mNode, a, b;
+
+    // find a segment intersected by a ray from the hole's leftmost point to the left;
+    // segment's endpoint with lesser x will be potential connection point
+    do {
+        a = node.i;
+        b = node.next.i;
+
+        if (py <= data[a + 1] && py >= data[b + 1]) {
+            var qx = data[a] + (py - data[a + 1]) * (data[b] - data[a]) / (data[b + 1] - data[a + 1]);
+            if (qx <= px && qx > qMax) {
+                qMax = qx;
+                mNode = data[a] < data[b] ? node : node.next;
+            }
+        }
+        node = node.next;
+    } while (node !== outerNode);
+
+    if (!mNode) return null;
+
+    // look for points strictly inside the triangle of hole point, segment intersection and endpoint;
+    // if there are no points found, we have a valid connection;
+    // otherwise choose the point of the minimum angle with the ray as connection point
+
+    var bx = data[mNode.i],
+        by = data[mNode.i + 1],
+        pbd = px * by - py * bx,
+        pcd = px * py - py * qMax,
+        cpy = py - py,
+        pcx = px - qMax,
+        pby = py - by,
+        bpx = bx - px,
+        A = pbd - pcd - (qMax * by - py * bx),
+        sign = A <= 0 ? -1 : 1,
+        stop = mNode,
+        tanMin = Infinity,
+        mx, my, amx, s, t, tan;
+
+    node = mNode.next;
+
+    while (node !== stop) {
+
+        mx = data[node.i];
+        my = data[node.i + 1];
+        amx = px - mx;
+
+        if (amx >= 0 && mx >= bx) {
+            s = (cpy * mx + pcx * my - pcd) * sign;
+            if (s >= 0) {
+                t = (pby * mx + bpx * my + pbd) * sign;
+
+                if (t >= 0 && A * sign - s - t >= 0) {
+                    tan = Math.abs(py - my) / amx; // tangential
+                    if (tan < tanMin && locallyInside(data, node, holeNode)) {
+                        mNode = node;
+                        tanMin = tan;
+                    }
+                }
+            }
+        }
+
+        node = node.next;
+    }
+
+    return mNode;
+}
+
+// interlink polygon nodes in z-order
+function indexCurve(data, start, minX, minY, size) {
+    var node = start;
+
+    do {
+        if (node.z === null) node.z = zOrder(data[node.i], data[node.i + 1], minX, minY, size);
+        node.prevZ = node.prev;
+        node.nextZ = node.next;
+        node = node.next;
+    } while (node !== start);
+
+    node.prevZ.nextZ = null;
+    node.prevZ = null;
+
+    sortLinked(node);
+}
+
+// Simon Tatham's linked list merge sort algorithm
+// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+function sortLinked(list) {
+    var i, p, q, e, tail, numMerges, pSize, qSize,
+        inSize = 1;
+
+    do {
+        p = list;
+        list = null;
+        tail = null;
+        numMerges = 0;
+
+        while (p) {
+            numMerges++;
+            q = p;
+            pSize = 0;
+            for (i = 0; i < inSize; i++) {
+                pSize++;
+                q = q.nextZ;
+                if (!q) break;
+            }
+
+            qSize = inSize;
+
+            while (pSize > 0 || (qSize > 0 && q)) {
+
+                if (pSize === 0) {
+                    e = q;
+                    q = q.nextZ;
+                    qSize--;
+                } else if (qSize === 0 || !q) {
+                    e = p;
+                    p = p.nextZ;
+                    pSize--;
+                } else if (p.z <= q.z) {
+                    e = p;
+                    p = p.nextZ;
+                    pSize--;
+                } else {
+                    e = q;
+                    q = q.nextZ;
+                    qSize--;
+                }
+
+                if (tail) tail.nextZ = e;
+                else list = e;
+
+                e.prevZ = tail;
+                tail = e;
+            }
+
+            p = q;
+        }
+
+        tail.nextZ = null;
+        inSize *= 2;
+
+    } while (numMerges > 1);
+
+    return list;
+}
+
+// z-order of a point given coords and size of the data bounding box
+function zOrder(x, y, minX, minY, size) {
+    // coords are transformed into (0..1000) integer range
+    x = 1000 * (x - minX) / size;
+    x = (x | (x << 8)) & 0x00FF00FF;
+    x = (x | (x << 4)) & 0x0F0F0F0F;
+    x = (x | (x << 2)) & 0x33333333;
+    x = (x | (x << 1)) & 0x55555555;
+
+    y = 1000 * (y - minY) / size;
+    y = (y | (y << 8)) & 0x00FF00FF;
+    y = (y | (y << 4)) & 0x0F0F0F0F;
+    y = (y | (y << 2)) & 0x33333333;
+    y = (y | (y << 1)) & 0x55555555;
+
+    return x | (y << 1);
+}
+
+// find the leftmost node of a polygon ring
+function getLeftmost(data, start) {
+    var node = start,
+        leftmost = start;
+    do {
+        if (data[node.i] < data[leftmost.i]) leftmost = node;
+        node = node.next;
+    } while (node !== start);
+
+    return leftmost;
+}
+
+// check if a diagonal between two polygon nodes is valid (lies in polygon interior)
+function isValidDiagonal(data, a, b) {
+    return a.next.i !== b.i && a.prev.i !== b.i &&
+           !intersectsPolygon(data, a, a.i, b.i) &&
+           locallyInside(data, a, b) && locallyInside(data, b, a) &&
+           middleInside(data, a, a.i, b.i);
+}
+
+// winding order of triangle formed by 3 given points
+function orient(data, p, q, r) {
+    var o = (data[q + 1] - data[p + 1]) * (data[r] - data[q]) - (data[q] - data[p]) * (data[r + 1] - data[q + 1]);
+    return o > 0 ? 1 :
+           o < 0 ? -1 : 0;
+}
+
+// check if two points are equal
+function equals(data, p1, p2) {
+    return data[p1] === data[p2] && data[p1 + 1] === data[p2 + 1];
+}
+
+// check if two segments intersect
+function intersects(data, p1, q1, p2, q2) {
+    return orient(data, p1, q1, p2) !== orient(data, p1, q1, q2) &&
+           orient(data, p2, q2, p1) !== orient(data, p2, q2, q1);
+}
+
+// check if a polygon diagonal intersects any polygon segments
+function intersectsPolygon(data, start, a, b) {
+    var node = start;
+    do {
+        var p1 = node.i,
+            p2 = node.next.i;
+
+        if (p1 !== a && p2 !== a && p1 !== b && p2 !== b && intersects(data, p1, p2, a, b)) return true;
+
+        node = node.next;
+    } while (node !== start);
+
+    return false;
+}
+
+// check if a polygon diagonal is locally inside the polygon
+function locallyInside(data, a, b) {
+    return orient(data, a.prev.i, a.i, a.next.i) === -1 ?
+        orient(data, a.i, b.i, a.next.i) !== -1 && orient(data, a.i, a.prev.i, b.i) !== -1 :
+        orient(data, a.i, b.i, a.prev.i) === -1 || orient(data, a.i, a.next.i, b.i) === -1;
+}
+
+// check if the middle point of a polygon diagonal is inside the polygon
+function middleInside(data, start, a, b) {
+    var node = start,
+        inside = false,
+        px = (data[a] + data[b]) / 2,
+        py = (data[a + 1] + data[b + 1]) / 2;
+    do {
+        var p1 = node.i,
+            p2 = node.next.i;
+
+        if (((data[p1 + 1] > py) !== (data[p2 + 1] > py)) &&
+            (px < (data[p2] - data[p1]) * (py - data[p1 + 1]) / (data[p2 + 1] - data[p1 + 1]) + data[p1]))
+                inside = !inside;
+
+        node = node.next;
+    } while (node !== start);
+
+    return inside;
+}
+
+// link two polygon vertices with a bridge; if the vertices belong to the same ring, it splits polygon into two;
+// if one belongs to the outer ring and another to a hole, it merges it into a single ring
+function splitPolygon(a, b) {
+    var a2 = new Node(a.i),
+        b2 = new Node(b.i),
+        an = a.next,
+        bp = b.prev;
+
+    a.next = b;
+    b.prev = a;
+
+    a2.next = an;
+    an.prev = a2;
+
+    b2.next = a2;
+    a2.prev = b2;
+
+    bp.next = b2;
+    b2.prev = bp;
+
+    return b2;
+}
+
+// create a node and optionally link it with previous one (in a circular doubly linked list)
+function insertNode(i, last) {
+    var node = new Node(i);
+
+    if (!last) {
+        node.prev = node;
+        node.next = node;
+
+    } else {
+        node.next = last.next;
+        node.prev = last;
+        last.next.prev = node;
+        last.next = node;
+    }
+    return node;
+}
+
+function Node(i) {
+    // vertex coordinates
+    this.i = i;
+
+    // previous and next vertice nodes in a polygon ring
+    this.prev = null;
+    this.next = null;
+
+    // z-order curve value
+    this.z = null;
+
+    // previous and next nodes in z-order
+    this.prevZ = null;
+    this.nextZ = null;
+
+    // indicates whether this is a steiner point
+    this.steiner = false;
+}
+
 },{}],31:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI core library
@@ -9413,7 +9410,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
     }
 });
 
-},{"./const":19,"./display/Container":20,"./display/DisplayObject":21,"./graphics/Graphics":22,"./graphics/GraphicsData":23,"./graphics/gCircle":24,"./graphics/gEllipse":25,"./graphics/gLine":26,"./graphics/gRect":27,"./graphics/gRoundedRect":28,"./graphics/webgl/GraphicsRenderer":29,"./math":34,"./particles/ParticleContainer":40,"./particles/webgl/ParticleRenderer":42,"./renderers/canvas/CanvasRenderer":45,"./renderers/canvas/utils/CanvasBuffer":46,"./renderers/canvas/utils/CanvasGraphics":47,"./renderers/webgl/WebGLRenderer":50,"./renderers/webgl/filters/AbstractFilter":51,"./renderers/webgl/filters/FXAAFilter":52,"./renderers/webgl/filters/SpriteMaskFilter":53,"./renderers/webgl/managers/ShaderManager":57,"./renderers/webgl/shaders/Shader":62,"./renderers/webgl/utils/ObjectRenderer":64,"./renderers/webgl/utils/RenderTarget":66,"./sprites/Image":68,"./sprites/Sprite":69,"./sprites/webgl/SpriteRenderer":70,"./text/Text":71,"./textures/BaseTexture":72,"./textures/RenderTexture":73,"./textures/Texture":74,"./textures/TextureUvs":75,"./textures/VideoBaseTexture":76,"./ticker":78,"./utils":79}],32:[function(require,module,exports){
+},{"./const":18,"./display/Container":19,"./display/DisplayObject":20,"./graphics/Graphics":21,"./graphics/GraphicsData":22,"./graphics/gCircle":23,"./graphics/gEllipse":24,"./graphics/gLine":25,"./graphics/gRect":26,"./graphics/gRoundedRect":27,"./graphics/webgl/GraphicsRenderer":28,"./math":34,"./particles/ParticleContainer":40,"./particles/webgl/ParticleRenderer":42,"./renderers/canvas/CanvasRenderer":45,"./renderers/canvas/utils/CanvasBuffer":46,"./renderers/canvas/utils/CanvasGraphics":47,"./renderers/webgl/WebGLRenderer":50,"./renderers/webgl/filters/AbstractFilter":51,"./renderers/webgl/filters/FXAAFilter":52,"./renderers/webgl/filters/SpriteMaskFilter":53,"./renderers/webgl/managers/ShaderManager":57,"./renderers/webgl/shaders/Shader":62,"./renderers/webgl/utils/ObjectRenderer":64,"./renderers/webgl/utils/RenderTarget":66,"./sprites/Image":68,"./sprites/Sprite":69,"./sprites/webgl/SpriteRenderer":70,"./text/Text":71,"./textures/BaseTexture":72,"./textures/RenderTexture":73,"./textures/Texture":74,"./textures/TextureUvs":75,"./textures/VideoBaseTexture":76,"./ticker":78,"./utils":79}],32:[function(require,module,exports){
 var Point = require('./Point');
 
 /**
@@ -9953,7 +9950,7 @@ Circle.prototype.getBounds = function ()
     return new Rectangle(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
 };
 
-},{"../../const":19,"./Rectangle":38}],36:[function(require,module,exports){
+},{"../../const":18,"./Rectangle":38}],36:[function(require,module,exports){
 var Rectangle = require('./Rectangle'),
     CONST = require('../../const');
 
@@ -10048,7 +10045,7 @@ Ellipse.prototype.getBounds = function ()
     return new Rectangle(this.x - this.width, this.y - this.height, this.width, this.height);
 };
 
-},{"../../const":19,"./Rectangle":38}],37:[function(require,module,exports){
+},{"../../const":18,"./Rectangle":38}],37:[function(require,module,exports){
 var Point = require('../Point'),
     CONST = require('../../const');
 
@@ -10150,7 +10147,7 @@ Polygon.prototype.contains = function (x, y)
     return inside;
 };
 
-},{"../../const":19,"../Point":33}],38:[function(require,module,exports){
+},{"../../const":18,"../Point":33}],38:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -10244,7 +10241,7 @@ Rectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":19}],39:[function(require,module,exports){
+},{"../../const":18}],39:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -10336,7 +10333,7 @@ RoundedRectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":19}],40:[function(require,module,exports){
+},{"../../const":18}],40:[function(require,module,exports){
 var Container = require('../display/Container'),
     CONST = require('../const');
 
@@ -10667,7 +10664,7 @@ ParticleContainer.prototype.destroy = function () {
     this._buffers = null;
 };
 
-},{"../const":19,"../display/Container":20}],41:[function(require,module,exports){
+},{"../const":18,"../display/Container":19}],41:[function(require,module,exports){
 
 /**
  * @author Mat Groves
@@ -11695,7 +11692,7 @@ SystemRenderer.prototype.destroy = function (removeView) {
     this._backgroundColorString = null;
 };
 
-},{"../const":19,"../math":34,"../utils":79,"eventemitter3":10}],45:[function(require,module,exports){
+},{"../const":18,"../math":34,"../utils":79,"eventemitter3":9}],45:[function(require,module,exports){
 var SystemRenderer = require('../SystemRenderer'),
     CanvasMaskManager = require('./utils/CanvasMaskManager'),
     utils = require('../../utils'),
@@ -11980,7 +11977,7 @@ CanvasRenderer.prototype._mapBlendModes = function ()
     }
 };
 
-},{"../../const":19,"../../math":34,"../../utils":79,"../SystemRenderer":44,"./utils/CanvasMaskManager":48}],46:[function(require,module,exports){
+},{"../../const":18,"../../math":34,"../../utils":79,"../SystemRenderer":44,"./utils/CanvasMaskManager":48}],46:[function(require,module,exports){
 /**
  * Creates a Canvas element of the given size.
  *
@@ -12433,7 +12430,7 @@ CanvasGraphics.updateGraphicsTint = function (graphics)
 };
 
 
-},{"../../../const":19}],48:[function(require,module,exports){
+},{"../../../const":18}],48:[function(require,module,exports){
 var CanvasGraphics = require('./CanvasGraphics');
 
 /**
@@ -13274,7 +13271,7 @@ WebGLRenderer.prototype._mapGlModes = function ()
     }
 };
 
-},{"../../const":19,"../../utils":79,"../SystemRenderer":44,"./filters/FXAAFilter":52,"./managers/BlendModeManager":54,"./managers/FilterManager":55,"./managers/MaskManager":56,"./managers/ShaderManager":57,"./managers/StencilManager":58,"./utils/ObjectRenderer":64,"./utils/RenderTarget":66}],51:[function(require,module,exports){
+},{"../../const":18,"../../utils":79,"../SystemRenderer":44,"./filters/FXAAFilter":52,"./managers/BlendModeManager":54,"./managers/FilterManager":55,"./managers/MaskManager":56,"./managers/ShaderManager":57,"./managers/StencilManager":58,"./utils/ObjectRenderer":64,"./utils/RenderTarget":66}],51:[function(require,module,exports){
 var DefaultShader = require('../shaders/TextureShader');
 
 /**
@@ -14016,7 +14013,7 @@ FilterManager.prototype.destroy = function ()
     this.texturePool = null;
 };
 
-},{"../../../const":19,"../../../math":34,"../utils/Quad":65,"../utils/RenderTarget":66,"./WebGLManager":59}],56:[function(require,module,exports){
+},{"../../../const":18,"../../../math":34,"../utils/Quad":65,"../utils/RenderTarget":66,"./WebGLManager":59}],56:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     AlphaMaskFilter = require('../filters/SpriteMaskFilter');
 
@@ -15967,7 +15964,7 @@ RenderTarget.prototype.destroy = function()
     this.texture = null;
 };
 
-},{"../../../const":19,"../../../math":34,"../../../utils":79,"./StencilMaskStack":67}],67:[function(require,module,exports){
+},{"../../../const":18,"../../../math":34,"../../../utils":79,"./StencilMaskStack":67}],67:[function(require,module,exports){
 /**
  * Generic Mask Stack data structure
  * @class
@@ -16578,7 +16575,7 @@ Image_.prototype.destroy = function (destroyTexture, destroyBaseTexture)
     this.shader = null;
 };
 
-},{"../const":19,"../display/Container":20,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/BaseTexture":72,"../textures/Texture":74,"../utils":79}],69:[function(require,module,exports){
+},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/BaseTexture":72,"../textures/Texture":74,"../utils":79}],69:[function(require,module,exports){
 var math = require('../math'),
     Texture = require('../textures/Texture'),
     Container = require('../display/Container'),
@@ -17142,7 +17139,7 @@ Sprite.fromImage = function (imageId, crossorigin, scaleMode)
     return new Sprite(Texture.fromImage(imageId, crossorigin, scaleMode));
 };
 
-},{"../const":19,"../display/Container":20,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/Texture":74,"../utils":79}],70:[function(require,module,exports){
+},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/Texture":74,"../utils":79}],70:[function(require,module,exports){
 var ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     CONST = require('../../const');
@@ -17610,7 +17607,7 @@ SpriteRenderer.prototype.destroy = function ()
     this.shader = null;
 };
 
-},{"../../const":19,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64}],71:[function(require,module,exports){
+},{"../../const":18,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64}],71:[function(require,module,exports){
 var Sprite = require('../sprites/Sprite'),
     Texture = require('../textures/Texture'),
     math = require('../math'),
@@ -18223,7 +18220,7 @@ Text.prototype.destroy = function (destroyBaseTexture)
     this._texture.destroy(destroyBaseTexture === undefined ? true : destroyBaseTexture);
 };
 
-},{"../const":19,"../math":34,"../sprites/Sprite":69,"../textures/Texture":74,"../utils":79}],72:[function(require,module,exports){
+},{"../const":18,"../math":34,"../sprites/Sprite":69,"../textures/Texture":74,"../utils":79}],72:[function(require,module,exports){
 var utils = require('../utils'),
     CONST = require('../const'),
     EventEmitter = require('eventemitter3');
@@ -18656,7 +18653,7 @@ BaseTexture.fromCanvas = function (canvas, scaleMode)
     return baseTexture;
 };
 
-},{"../const":19,"../utils":79,"eventemitter3":10}],73:[function(require,module,exports){
+},{"../const":18,"../utils":79,"eventemitter3":9}],73:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     Texture = require('./Texture'),
     RenderTarget = require('../renderers/webgl/utils/RenderTarget'),
@@ -19147,7 +19144,7 @@ RenderTexture.prototype.getPixel = function (x, y)
     }
 };
 
-},{"../const":19,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/webgl/managers/FilterManager":55,"../renderers/webgl/utils/RenderTarget":66,"./BaseTexture":72,"./Texture":74}],74:[function(require,module,exports){
+},{"../const":18,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/webgl/managers/FilterManager":55,"../renderers/webgl/utils/RenderTarget":66,"./BaseTexture":72,"./Texture":74}],74:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     VideoBaseTexture = require('./VideoBaseTexture'),
     TextureUvs = require('./TextureUvs'),
@@ -19553,7 +19550,7 @@ Texture.removeTextureFromCache = function (id)
 
 Texture.EMPTY = new Texture(new BaseTexture());
 
-},{"../math":34,"../utils":79,"./BaseTexture":72,"./TextureUvs":75,"./VideoBaseTexture":76,"eventemitter3":10}],75:[function(require,module,exports){
+},{"../math":34,"../utils":79,"./BaseTexture":72,"./TextureUvs":75,"./VideoBaseTexture":76,"eventemitter3":9}],75:[function(require,module,exports){
 
 /**
  * A standard object to store the Uvs of a texture
@@ -20205,7 +20202,7 @@ Ticker.prototype.update = function update(currentTime)
 
 module.exports = Ticker;
 
-},{"../const":19,"eventemitter3":10}],78:[function(require,module,exports){
+},{"../const":18,"eventemitter3":9}],78:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -20442,7 +20439,9 @@ var utils = module.exports = {
             return;
         }
 
-        if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1)
+        window.console.log(type);
+
+        /*if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1)
         {
             var args = [
                 '\n %c %c %c Pixi.js ' + CONST.VERSION + ' - ✰ ' + type + ' ✰  %c ' + ' %c ' + ' http://www.pixijs.com/  %c %c ♥%c♥%c♥ \n\n',
@@ -20462,7 +20461,7 @@ var utils = module.exports = {
         else if (window.console)
         {
             window.console.log('Pixi.js ' + CONST.VERSION + ' - ' + type + ' - http://www.pixijs.com/'); //jshint ignore:line
-        }
+        }*/
 
         utils._saidHello = true;
     },
@@ -20493,6 +20492,28 @@ var utils = module.exports = {
         }
     },
 
+    loadScript:function(_url,__ck){
+        if(!_url)return;
+        var 
+        head = document && (document.head || document.getElementsByTagName('head')[0]),
+        script = document.createElement('script'),
+        me = this,
+        clearSE = function(_script) {
+            _script.onload = null;
+            _script.onerror = null;
+            head.removeChild(script);
+        },
+        _loadFn = function() {
+            clearSE(script);
+            __ck();
+        };
+        script.type = 'text/javascript';
+        script.src = _url;
+        script.onload = _loadFn;
+        script.onerror = clearSE;
+        head.appendChild(script);
+    },
+
     /**
      * @todo Describe property usage
      * @private
@@ -20506,7 +20527,7 @@ var utils = module.exports = {
     BaseTextureCache: {}
 };
 
-},{"../const":19,"./pluginTarget":80,"async":1}],80:[function(require,module,exports){
+},{"../const":18,"./pluginTarget":80,"async":1}],80:[function(require,module,exports){
 /**
  * Mixins functionality to make an object have "plugins".
  *
@@ -20577,208 +20598,6 @@ module.exports = {
 };
 
 },{}],81:[function(require,module,exports){
-require('./polyfill');
-
-var core = require('./core');
-
-core.extras         = require('./extras');
-core.filters        = require('./filters');
-// core.interaction    = require('./interaction');
-core.loaders        = require('./loaders');
-core.mesh           = require('./mesh');
-
-core.loader = new core.loaders.Loader();
-
-// Object.assign(core, require('./deprecation'));
-
-
-var __class = {},
-    selector = {
-        tagCache:{},
-        content:{},
-        objCache:{}
-    },
-    _tempPoint = new core.Point() ;
-
-
-
-var bindClass = core.bindClass = function( name, source, factory ){
-    if(__class[name])return false;
-
-    factory = factory || function( _class, ops){
-        var c, b = ops;
-        if(Object.prototype.toString.call(ops)==='[object Array]'){
-            switch(b.length)
-            {
-                case 1 :c = new _class[a](b[0]);break;
-                case 2 :c = new _class[a](b[0],b[1]); break;
-                case 3 :c = new _class[a](b[0],b[1],b[2]); break;
-                case 4 :c = new _class[a](b[0],b[1],b[2],b[3]);break;
-                case 5 :c = new _class[a](b[0],b[1],b[2],b[3],b[4]);break;
-                case 6 :c = new _class[a](b[0],b[1],b[2],b[3],b[4],b[5]);break;
-                default:c = new _class[a]();break;
-            }
-        }else{
-            c = new _class(b);
-        }
-        return c;
-    }
-    __class[name] = factory.bind( null, source );
-    return true;
-};
-
-var factoryObject = core.factoryObject = function( name , ops ){
-    return __class[name] && __class[name](ops) || null;
-};
-
-bindClass('Image',core.Image,function(c,ops){
-    ops = ops||{};
-    var obj = new c({
-        texture:ops.texture,
-        url:ops.url,
-        resId:ops.resId
-    });
-    return qset.call(obj,ops,null,['texture','url','resId']);
-});
-
-function qset( ops, isfunc, exc )
-{
-    ops = ops||{};
-    var isCV = !!ops.cover && Object.prototype.toString.call(ops.cover)==='[object Object]';
-
-    if(Object.prototype.toString.call(exc)!=='[object Array]')exc=[];
-
-    if(isCV)exc.push('cover');
-
-    for(var i in ops){
-        if(exc.indexOf(i)!=-1)continue;
-        if(this[i]!==undefined&&typeof this[i]!=='function')this[i]=ops[i];
-    }
-
-    if(isCV)for(var i in ops.cover)this[i]=ops.cover[i];
-
-    if(isfunc!==false)for(var i in ops){
-        if(exc.indexOf(i)!=-1)continue;
-        if(this[i]==='function')this[i](ops[i]);
-    }
-
-    return this;
-}
-
-function q(){
-
-    if(arguments.length==0)return null;
-
-    var rt = null, a = arguments[0];
-
-    if(arguments.length==1&& typeof a =='string'){
-        a = arguments[0];
-        if(a[0]=='.'){
-            rt = selector.tagCache[a];
-        }else if(a[0]=='#'){
-            rt = selector.objCache[a];
-        }else{
-            rt = g.selector.getByName(a);
-        }
-    }else if(arguments.length==2){
-        rt = factoryObject(a,arguments[1]);
-    }
-
-    return rt;
-}
-
-
-module.exports = qset.call( q, { cover:core } );
-
-
-Object.defineProperties(core.DisplayObject.prototype,{
-
-    interaction:{value:function( name, evDate, hit ){
-
-        if( !this.enabled || evDate.stopped ) return ;
-        this.containsPoint( evDate.global )&&this.emit( name, evDate );
-
-    }},
-
-    containsPoint:{value:function(point){ /** TODO:*/ }},
-
-    enabled:{value:true},
-
-    scaleX: {
-        
-        get: function ()
-        {
-            return this.scale.x;
-        },
-        set: function (value)
-        {
-            this.scale.x = value;
-        }
-    },
-    scaleY: {
-        get: function ()
-        {
-            return this.scale.y;
-        },
-        set: function (value)
-        {
-            this.scale.y = value;
-        }
-    },
-
-    angle: {
-        get: function ()
-        {
-            return this.rotation / core.CONST.DEG_TO_RAD;
-        },
-        set: function (value)
-        {
-            this.rotation = 
-            value * core.CONST.DEG_TO_RAD ;
-        }
-    }
-});
-
-
-Object.defineProperties(core.Container.prototype,{
-
-    interaction:{value:function( name , evDate, hit ){
-
-        if(!this.enabled || evDate.stopped)return;
-
-        this.containsPoint(evDate.global)&&this.emit(name,evDate);
-
-        var children = this.children;
-
-        if(this.interactiveChildren)
-        {
-            for (var i = children.length-1; i >= 0; i--)
-            {
-                if(evDate.stopped)return;
-                children[i].interaction(name , evDate, hit);
-            }
-        }
-    }},
-    createItems:{value:function( ops ){
-
-       
-    }}
-});
-
-
-/**
- * CONST
- */
-qset.call(core.utils,{
-    cover:{
-        getRes:function(){
-
-        }
-    }
-});
-
-
-},{"./core":31,"./extras":88,"./filters":105,"./loaders":120,"./mesh":126,"./polyfill":130}],82:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -21157,7 +20976,7 @@ BitmapText.prototype.validate = function()
 
 BitmapText.fonts = {};
 
-},{"../core":31}],83:[function(require,module,exports){
+},{"../core":31}],82:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -21433,7 +21252,7 @@ MovieClip.fromImages = function (images)
     return new MovieClip(textures);
 };
 
-},{"../core":31}],84:[function(require,module,exports){
+},{"../core":31}],83:[function(require,module,exports){
 var core = require('../core'),
     // a sprite use dfor rendering textures..
     tempPoint = new core.Point();
@@ -21870,7 +21689,7 @@ TilingSprite.fromImage = function (imageId, width, height, crossorigin, scaleMod
     return new TilingSprite(core.Texture.fromImage(imageId, crossorigin, scaleMode),width,height);
 };
 
-},{"../core":31}],85:[function(require,module,exports){
+},{"../core":31}],84:[function(require,module,exports){
 var core = require('../core'),
     DisplayObject = core.DisplayObject,
     _tempMatrix = new core.Matrix();
@@ -22142,7 +21961,7 @@ DisplayObject.prototype._cacheAsBitmapDestroy = function ()
     this._originalDestroy();
 };
 
-},{"../core":31}],86:[function(require,module,exports){
+},{"../core":31}],85:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -22170,7 +21989,7 @@ core.Container.prototype.getChildByName = function (name)
     return null;
 };
 
-},{"../core":31}],87:[function(require,module,exports){
+},{"../core":31}],86:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -22199,7 +22018,7 @@ core.DisplayObject.prototype.getGlobalPosition = function (point)
     return point;
 };
 
-},{"../core":31}],88:[function(require,module,exports){
+},{"../core":31}],87:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -22220,7 +22039,7 @@ module.exports = {
     BitmapText:     require('./BitmapText')
 };
 
-},{"./BitmapText":82,"./MovieClip":83,"./TilingSprite":84,"./cacheAsBitmap":85,"./getChildByName":86,"./getGlobalPosition":87}],89:[function(require,module,exports){
+},{"./BitmapText":81,"./MovieClip":82,"./TilingSprite":83,"./cacheAsBitmap":84,"./getChildByName":85,"./getGlobalPosition":86}],88:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22277,7 +22096,7 @@ Object.defineProperties(AsciiFilter.prototype, {
     }
 });
 
-},{"../../core":31}],90:[function(require,module,exports){
+},{"../../core":31}],89:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYFilter = require('../blur/BlurYFilter');
@@ -22378,7 +22197,7 @@ Object.defineProperties(BloomFilter.prototype, {
     }
 });
 
-},{"../../core":31,"../blur/BlurXFilter":93,"../blur/BlurYFilter":94}],91:[function(require,module,exports){
+},{"../../core":31,"../blur/BlurXFilter":92,"../blur/BlurYFilter":93}],90:[function(require,module,exports){
 var core = require('../../core');
 
 
@@ -22523,7 +22342,7 @@ Object.defineProperties(BlurDirFilter.prototype, {
     }
 });
 
-},{"../../core":31}],92:[function(require,module,exports){
+},{"../../core":31}],91:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('./BlurXFilter'),
     BlurYFilter = require('./BlurYFilter');
@@ -22633,7 +22452,7 @@ Object.defineProperties(BlurFilter.prototype, {
     }
 });
 
-},{"../../core":31,"./BlurXFilter":93,"./BlurYFilter":94}],93:[function(require,module,exports){
+},{"../../core":31,"./BlurXFilter":92,"./BlurYFilter":93}],92:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22727,7 +22546,7 @@ Object.defineProperties(BlurXFilter.prototype, {
     }
 });
 
-},{"../../core":31}],94:[function(require,module,exports){
+},{"../../core":31}],93:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22813,7 +22632,7 @@ Object.defineProperties(BlurYFilter.prototype, {
     }
 });
 
-},{"../../core":31}],95:[function(require,module,exports){
+},{"../../core":31}],94:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22843,7 +22662,7 @@ SmartBlurFilter.prototype = Object.create(core.AbstractFilter.prototype);
 SmartBlurFilter.prototype.constructor = SmartBlurFilter;
 module.exports = SmartBlurFilter;
 
-},{"../../core":31}],96:[function(require,module,exports){
+},{"../../core":31}],95:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23383,7 +23202,7 @@ Object.defineProperties(ColorMatrixFilter.prototype, {
     }
 });
 
-},{"../../core":31}],97:[function(require,module,exports){
+},{"../../core":31}],96:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23432,7 +23251,7 @@ Object.defineProperties(ColorStepFilter.prototype, {
     }
 });
 
-},{"../../core":31}],98:[function(require,module,exports){
+},{"../../core":31}],97:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23523,7 +23342,7 @@ Object.defineProperties(ConvolutionFilter.prototype, {
     }
 });
 
-},{"../../core":31}],99:[function(require,module,exports){
+},{"../../core":31}],98:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23549,7 +23368,7 @@ CrossHatchFilter.prototype = Object.create(core.AbstractFilter.prototype);
 CrossHatchFilter.prototype.constructor = CrossHatchFilter;
 module.exports = CrossHatchFilter;
 
-},{"../../core":31}],100:[function(require,module,exports){
+},{"../../core":31}],99:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23630,7 +23449,7 @@ Object.defineProperties(DisplacementFilter.prototype, {
     }
 });
 
-},{"../../core":31}],101:[function(require,module,exports){
+},{"../../core":31}],100:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23702,7 +23521,7 @@ Object.defineProperties(DotScreenFilter.prototype, {
     }
 });
 
-},{"../../core":31}],102:[function(require,module,exports){
+},{"../../core":31}],101:[function(require,module,exports){
 var core = require('../../core');
 
 // @see https://github.com/substack/brfs/issues/25
@@ -23793,7 +23612,7 @@ Object.defineProperties(BlurYTintFilter.prototype, {
     }
 });
 
-},{"../../core":31}],103:[function(require,module,exports){
+},{"../../core":31}],102:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYTintFilter = require('./BlurYTintFilter');
@@ -23962,7 +23781,7 @@ Object.defineProperties(DropShadowFilter.prototype, {
     }
 });
 
-},{"../../core":31,"../blur/BlurXFilter":93,"./BlurYTintFilter":102}],104:[function(require,module,exports){
+},{"../../core":31,"../blur/BlurXFilter":92,"./BlurYTintFilter":101}],103:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24011,7 +23830,7 @@ Object.defineProperties(GrayFilter.prototype, {
     }
 });
 
-},{"../../core":31}],105:[function(require,module,exports){
+},{"../../core":31}],104:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI filters library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -24051,7 +23870,7 @@ module.exports = {
     TwistFilter:        require('./twist/TwistFilter')
 };
 
-},{"./ascii/AsciiFilter":89,"./bloom/BloomFilter":90,"./blur/BlurDirFilter":91,"./blur/BlurFilter":92,"./blur/BlurXFilter":93,"./blur/BlurYFilter":94,"./blur/SmartBlurFilter":95,"./color/ColorMatrixFilter":96,"./color/ColorStepFilter":97,"./convolution/ConvolutionFilter":98,"./crosshatch/CrossHatchFilter":99,"./displacement/DisplacementFilter":100,"./dot/DotScreenFilter":101,"./dropshadow/DropShadowFilter":103,"./gray/GrayFilter":104,"./invert/InvertFilter":106,"./noise/NoiseFilter":107,"./normal/NormalMapFilter":108,"./pixelate/PixelateFilter":109,"./rgb/RGBSplitFilter":110,"./sepia/SepiaFilter":111,"./shockwave/ShockwaveFilter":112,"./tiltshift/TiltShiftFilter":114,"./tiltshift/TiltShiftXFilter":115,"./tiltshift/TiltShiftYFilter":116,"./twist/TwistFilter":117}],106:[function(require,module,exports){
+},{"./ascii/AsciiFilter":88,"./bloom/BloomFilter":89,"./blur/BlurDirFilter":90,"./blur/BlurFilter":91,"./blur/BlurXFilter":92,"./blur/BlurYFilter":93,"./blur/SmartBlurFilter":94,"./color/ColorMatrixFilter":95,"./color/ColorStepFilter":96,"./convolution/ConvolutionFilter":97,"./crosshatch/CrossHatchFilter":98,"./displacement/DisplacementFilter":99,"./dot/DotScreenFilter":100,"./dropshadow/DropShadowFilter":102,"./gray/GrayFilter":103,"./invert/InvertFilter":105,"./noise/NoiseFilter":106,"./normal/NormalMapFilter":107,"./pixelate/PixelateFilter":108,"./rgb/RGBSplitFilter":109,"./sepia/SepiaFilter":110,"./shockwave/ShockwaveFilter":111,"./tiltshift/TiltShiftFilter":113,"./tiltshift/TiltShiftXFilter":114,"./tiltshift/TiltShiftYFilter":115,"./twist/TwistFilter":116}],105:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24101,7 +23920,7 @@ Object.defineProperties(InvertFilter.prototype, {
     }
 });
 
-},{"../../core":31}],107:[function(require,module,exports){
+},{"../../core":31}],106:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24156,7 +23975,7 @@ Object.defineProperties(NoiseFilter.prototype, {
     }
 });
 
-},{"../../core":31}],108:[function(require,module,exports){
+},{"../../core":31}],107:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24269,7 +24088,7 @@ Object.defineProperties(NormalMapFilter.prototype, {
     }
 });
 
-},{"../../core":31}],109:[function(require,module,exports){
+},{"../../core":31}],108:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24320,7 +24139,7 @@ Object.defineProperties(PixelateFilter.prototype, {
     }
 });
 
-},{"../../core":31}],110:[function(require,module,exports){
+},{"../../core":31}],109:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24406,7 +24225,7 @@ Object.defineProperties(RGBSplitFilter.prototype, {
     }
 });
 
-},{"../../core":31}],111:[function(require,module,exports){
+},{"../../core":31}],110:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24456,7 +24275,7 @@ Object.defineProperties(SepiaFilter.prototype, {
     }
 });
 
-},{"../../core":31}],112:[function(require,module,exports){
+},{"../../core":31}],111:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24544,7 +24363,7 @@ Object.defineProperties(ShockwaveFilter.prototype, {
     }
 });
 
-},{"../../core":31}],113:[function(require,module,exports){
+},{"../../core":31}],112:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24669,7 +24488,7 @@ Object.defineProperties(TiltShiftAxisFilter.prototype, {
     }
 });
 
-},{"../../core":31}],114:[function(require,module,exports){
+},{"../../core":31}],113:[function(require,module,exports){
 var core = require('../../core'),
     TiltShiftXFilter = require('./TiltShiftXFilter'),
     TiltShiftYFilter = require('./TiltShiftYFilter');
@@ -24779,7 +24598,7 @@ Object.defineProperties(TiltShiftFilter.prototype, {
     }
 });
 
-},{"../../core":31,"./TiltShiftXFilter":115,"./TiltShiftYFilter":116}],115:[function(require,module,exports){
+},{"../../core":31,"./TiltShiftXFilter":114,"./TiltShiftYFilter":115}],114:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -24817,7 +24636,7 @@ TiltShiftXFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dy / d;
 };
 
-},{"./TiltShiftAxisFilter":113}],116:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":112}],115:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -24855,7 +24674,7 @@ TiltShiftYFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dx / d;
 };
 
-},{"./TiltShiftAxisFilter":113}],117:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":112}],116:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24940,43 +24759,1013 @@ Object.defineProperties(TwistFilter.prototype, {
     }
 });
 
-},{"../../core":31}],118:[function(require,module,exports){
+},{"../../core":31}],117:[function(require,module,exports){
 (function (global){
-// run the polyfills
 // require('./polyfill');
 
-// var core = module.exports = require('./core');
+// global.Q = module.exports = require('./application');
 
-// add core plugins.
-// core.extras         = require('./extras');
-// core.filters        = require('./filters');
-// core.interaction    = require('./interaction');
-// core.loaders        = require('./loaders');
-// core.mesh           = require('./mesh');
 
-// export a premade loader instance
-/**
- * A premade instance of the loader that can be used to loader resources.
- *
- * @name loader
- * @memberof PIXI
- * @property {PIXI.loaders.Loader}
- */
-// core.loader = new core.loaders.Loader();
 
-// mixin the deprecation features.
-// Object.assign(core, require('./deprecation'));
 
-// Always export pixi globally.
+require('./polyfill');
+var core = module.exports = require('./core');
 
-var core = module.exports = require('./expand');
+core.extras         = require('./extras');
+core.filters        = require('./filters');
+core.interaction    = require('./interaction');
+core.loaders        = require('./loaders');
+core.mesh           = require('./mesh');
 
-global.PIXI = core;
+core.loader = new core.loaders.Loader();
+
 global.Q = core;
+
+
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./expand":81}],119:[function(require,module,exports){
+},{"./core":31,"./extras":87,"./filters":104,"./interaction":120,"./loaders":123,"./mesh":129,"./polyfill":133}],118:[function(require,module,exports){
+var core = require('../core');
+
+/**
+ * Holds all information related to an Interaction event
+ *
+ * @class
+ * @memberof PIXI.interaction
+ */
+function InteractionData()
+{
+    /**
+     * This point stores the global coords of where the touch/mouse event happened
+     *
+     * @member {Point}
+     */
+    this.global = new core.Point();
+
+    /**
+     * The target Sprite that was interacted with
+     *
+     * @member {Sprite}
+     */
+    this.target = null;
+
+    /**
+     * When passed to an event handler, this will be the original DOM Event that was captured
+     *
+     * @member {Event}
+     */
+    this.originalEvent = null;
+}
+
+InteractionData.prototype.constructor = InteractionData;
+module.exports = InteractionData;
+
+/**
+ * This will return the local coordinates of the specified displayObject for this InteractionData
+ *
+ * @param displayObject {DisplayObject} The DisplayObject that you would like the local coords off
+ * @param [point] {Point} A Point object in which to store the value, optional (otherwise will create a new point)
+ * param [globalPos] {Point} A Point object containing your custom global coords, optional (otherwise will use the current global coords)
+ * @return {Point} A point containing the coordinates of the InteractionData position relative to the DisplayObject
+ */
+InteractionData.prototype.getLocalPosition = function (displayObject, point, globalPos)
+{
+    var worldTransform = displayObject.worldTransform;
+    var global = globalPos ? globalPos : this.global;
+
+    // do a cheeky transform to get the mouse coords;
+    var a00 = worldTransform.a, a01 = worldTransform.c, a02 = worldTransform.tx,
+        a10 = worldTransform.b, a11 = worldTransform.d, a12 = worldTransform.ty,
+        id = 1 / (a00 * a11 + a01 * -a10);
+
+    point = point || new core.Point();
+
+    point.x = a11 * id * global.x + -a01 * id * global.x + (a12 * a01 - a02 * a11) * id;
+    point.y = a00 * id * global.y + -a10 * id * global.y + (-a12 * a00 + a02 * a10) * id;
+
+    // set the mouse coords...
+    return point;
+};
+
+},{"../core":31}],119:[function(require,module,exports){
+var core = require('../core'),
+    InteractionData = require('./InteractionData');
+
+// Mix interactiveTarget into core.DisplayObject.prototype
+Object.assign(
+    core.DisplayObject.prototype,
+    require('./interactiveTarget')
+);
+
+/**
+ * The interaction manager deals with mouse and touch events. Any DisplayObject can be interactive
+ * if its interactive parameter is set to true
+ * This manager also supports multitouch.
+ *
+ * @class
+ * @memberof PIXI.interaction
+ * @param renderer {CanvasRenderer|WebGLRenderer} A reference to the current renderer
+ * @param [options] {object}
+ * @param [options.autoPreventDefault=true] {boolean} Should the manager automatically prevent default browser actions.
+ * @param [options.interactionFrequency=10] {number} Frequency increases the interaction events will be checked.
+ */
+function InteractionManager(renderer, options)
+{
+    options = options || {};
+
+    /**
+     * The renderer this interaction manager works for.
+     *
+     * @member {SystemRenderer}
+     */
+    this.renderer = renderer;
+
+    /**
+     * Should default browser actions automatically be prevented.
+     *
+     * @member {boolean}
+     * @default true
+     */
+    this.autoPreventDefault = options.autoPreventDefault !== undefined ? options.autoPreventDefault : true;
+
+    /**
+     * As this frequency increases the interaction events will be checked more often.
+     *
+     * @member {number}
+     * @default 10
+     */
+    this.interactionFrequency = options.interactionFrequency || 10;
+
+    /**
+     * The mouse data
+     *
+     * @member {InteractionData}
+     */
+    this.mouse = new InteractionData();
+
+    /**
+     * An event data object to handle all the event tracking/dispatching
+     *
+     * @member {EventData}
+     */
+    this.eventData = {
+        stopped: false,
+        target: null,
+        type: null,
+        data: this.mouse,
+        stopPropagation:function(){
+            this.stopped = true;
+        }
+    };
+
+    /**
+     * Tiny little interactiveData pool !
+     *
+     * @member {Array}
+     */
+    this.interactiveDataPool = [];
+
+    /**
+     * The DOM element to bind to.
+     *
+     * @member {HTMLElement}
+     * @private
+     */
+    this.interactionDOMElement = null;
+
+    /**
+     * Have events been attached to the dom element?
+     *
+     * @member {boolean}
+     * @private
+     */
+    this.eventsAdded = false;
+
+    //this will make it so that you don't have to call bind all the time
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseUp = this.onMouseUp.bind(this);
+    this.processMouseUp = this.processMouseUp.bind( this );
+
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.processMouseDown = this.processMouseDown.bind( this );
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseMove = this.onMouseMove.bind( this );
+    this.processMouseMove = this.processMouseMove.bind( this );
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseOut = this.onMouseOut.bind(this);
+    this.processMouseOverOut = this.processMouseOverOut.bind( this );
+
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchStart = this.onTouchStart.bind(this);
+    this.processTouchStart = this.processTouchStart.bind(this);
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchEnd = this.onTouchEnd.bind(this);
+    this.processTouchEnd = this.processTouchEnd.bind(this);
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchMove = this.onTouchMove.bind(this);
+    this.processTouchMove = this.processTouchMove.bind(this);
+
+    /**
+     * @member {number}
+     */
+    this.last = 0;
+
+    /**
+     * The css style of the cursor that is being used
+     * @member {string}
+     */
+    this.currentCursorStyle = 'inherit';
+
+    /**
+     * Internal cached var
+     * @member {Point}
+     * @private
+     */
+    this._tempPoint = new core.Point();
+
+    /**
+     * The current resolution
+     * @member {number}
+     */
+    this.resolution = 1;
+
+    this.setTargetElement(this.renderer.view, this.renderer.resolution);
+}
+
+InteractionManager.prototype.constructor = InteractionManager;
+module.exports = InteractionManager;
+
+/**
+ * Sets the DOM element which will receive mouse/touch events. This is useful for when you have
+ * other DOM elements on top of the renderers Canvas element. With this you'll be bale to deletegate
+ * another DOM element to receive those events.
+ *
+ * @param element {HTMLElement} the DOM element which will receive mouse and touch events.
+ * @param [resolution=1] {number} THe resolution of the new element (relative to the canvas).
+ * @private
+ */
+InteractionManager.prototype.setTargetElement = function (element, resolution)
+{
+    this.removeEvents();
+
+    this.interactionDOMElement = element;
+
+    this.resolution = resolution || 1;
+
+    this.addEvents();
+};
+
+/**
+ * Registers all the DOM events
+ * @private
+ */
+InteractionManager.prototype.addEvents = function ()
+{
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    core.ticker.shared.add(this.update, this);
+
+    if (window.navigator.msPointerEnabled)
+    {
+        this.interactionDOMElement.style['-ms-content-zooming'] = 'none';
+        this.interactionDOMElement.style['-ms-touch-action'] = 'none';
+    }
+
+    window.document.addEventListener('mousemove',    this.onMouseMove, true);
+    this.interactionDOMElement.addEventListener('mousedown',    this.onMouseDown, true);
+    this.interactionDOMElement.addEventListener('mouseout',     this.onMouseOut, true);
+
+    this.interactionDOMElement.addEventListener('touchstart',   this.onTouchStart, true);
+    this.interactionDOMElement.addEventListener('touchend',     this.onTouchEnd, true);
+    this.interactionDOMElement.addEventListener('touchmove',    this.onTouchMove, true);
+
+    window.addEventListener('mouseup',  this.onMouseUp, true);
+
+    this.eventsAdded = true;
+};
+
+/**
+ * Removes all the DOM events that were previously registered
+ * @private
+ */
+InteractionManager.prototype.removeEvents = function ()
+{
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    core.ticker.shared.remove(this.update);
+
+    if (window.navigator.msPointerEnabled)
+    {
+        this.interactionDOMElement.style['-ms-content-zooming'] = '';
+        this.interactionDOMElement.style['-ms-touch-action'] = '';
+    }
+
+    window.document.removeEventListener('mousemove', this.onMouseMove, true);
+    this.interactionDOMElement.removeEventListener('mousedown', this.onMouseDown, true);
+    this.interactionDOMElement.removeEventListener('mouseout',  this.onMouseOut, true);
+
+    this.interactionDOMElement.removeEventListener('touchstart', this.onTouchStart, true);
+    this.interactionDOMElement.removeEventListener('touchend',  this.onTouchEnd, true);
+    this.interactionDOMElement.removeEventListener('touchmove', this.onTouchMove, true);
+
+    this.interactionDOMElement = null;
+
+    window.removeEventListener('mouseup',  this.onMouseUp, true);
+
+    this.eventsAdded = false;
+};
+
+/**
+ * Updates the state of interactive objects.
+ * Invoked by a throttled ticker update from
+ * {@link PIXI.ticker.shared}.
+ *
+ * @param deltaTime {number}
+ */
+InteractionManager.prototype.update = function (deltaTime)
+{
+    this._deltaTime += deltaTime;
+
+    if (this._deltaTime < this.interactionFrequency)
+    {
+        return;
+    }
+
+    this._deltaTime = 0;
+
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    // if the user move the mouse this check has already been dfone using the mouse move!
+    if(this.didMove)
+    {
+        this.didMove = false;
+        return;
+    }
+
+    this.cursor = 'inherit';
+
+    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, true );
+
+    if (this.currentCursorStyle !== this.cursor)
+    {
+        this.currentCursorStyle = this.cursor;
+        this.interactionDOMElement.style.cursor = this.cursor;
+    }
+
+    //TODO
+};
+
+/**
+ * Dispatches an event on the display object that was interacted with
+ * @param displayObject {Container|Sprite|TilingSprite} the display object in question
+ * @param eventString {string} the name of the event (e.g, mousedown)
+ * @param eventData {EventData} the event data object
+ * @private
+ */
+InteractionManager.prototype.dispatchEvent = function ( displayObject, eventString, eventData )
+{
+    if(!eventData.stopped)
+    {
+        eventData.target = displayObject;
+        eventData.type = eventString;
+
+        displayObject.emit( eventString, eventData );
+
+        if( displayObject[eventString] )
+        {
+            displayObject[eventString]( eventData );
+        }
+    }
+};
+
+/**
+ * Maps x and y coords from a DOM object and maps them correctly to the pixi view. The resulting value is stored in the point.
+ * This takes into account the fact that the DOM element could be scaled and positioned anywhere on the screen.
+ *
+ * @param  {Point} point the point that the result will be stored in
+ * @param  {number} x     the x coord of the position to map
+ * @param  {number} y     the y coord of the position to map
+ */
+InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
+{
+    var rect = this.interactionDOMElement.getBoundingClientRect();
+    point.x = ( ( x - rect.left ) * (this.interactionDOMElement.width  / rect.width  ) ) / this.resolution;
+    point.y = ( ( y - rect.top  ) * (this.interactionDOMElement.height / rect.height ) ) / this.resolution;
+};
+
+/**
+ * This function is provides a neat way of crawling through the scene graph and running a specified function on all interactive objects it finds.
+ * It will also take care of hit testing the interactive objects and passes the hit across in the function.
+ *
+ * @param  {Point} point the point that is tested for collision
+ * @param  {Container|Sprite|TilingSprite} displayObject the displayObject that will be hit test (recurcsivly crawls its children)
+ * @param  {function} func the function that will be called on each interactive object. The displayObject and hit will be passed to the function
+ * @param  {boolean} hitTest this indicates if the objects inside should be hit test against the point
+ * @return {boolean} returns true if the displayObject hit the point
+ */
+InteractionManager.prototype.processInteractive = function (point, displayObject, func, hitTest, interactive )
+{
+    if(!displayObject.visible)
+    {
+        return false;
+    }
+
+    var children = displayObject.children;
+
+    var hit = false;
+
+    // if the object is interactive we must hit test all its children..
+    interactive = interactive || displayObject.interactive;
+
+    if(displayObject.interactiveChildren)
+    {
+
+        for (var i = children.length-1; i >= 0; i--)
+        {
+            if(! hit  && hitTest)
+            {
+                hit = this.processInteractive(point, children[i], func, true, interactive );
+            }
+            else
+            {
+                // now we know we can miss it all!
+                this.processInteractive(point, children[i], func, false, false );
+            }
+        }
+
+    }
+
+    if(interactive)
+    {
+        if(hitTest)
+        {
+            if(displayObject.hitArea)
+            {
+                // lets use the hit object first!
+                displayObject.worldTransform.applyInverse(point,  this._tempPoint);
+                hit = displayObject.hitArea.contains( this._tempPoint.x, this._tempPoint.y );
+            }
+            else if(displayObject.containsPoint)
+            {
+                hit = displayObject.containsPoint(point);
+            }
+        }
+
+        if(displayObject.interactive)
+        {
+            func(displayObject, hit);
+        }
+    }
+
+    return hit;
+};
+
+
+
+
+/**
+ * Is called when the mouse button is pressed down on the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse button being pressed down
+ * @private
+ */
+InteractionManager.prototype.onMouseDown = function (event)
+{
+    this.mouse.originalEvent = event;
+    this.eventData.data = this.mouse;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
+
+    if (this.autoPreventDefault)
+    {
+        this.mouse.originalEvent.preventDefault();
+    }
+
+    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseDown, true );
+};
+
+/**
+ * Processes the result of the mouse down check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the dispay object
+ * @private
+ */
+InteractionManager.prototype.processMouseDown = function ( displayObject, hit )
+{
+    var e = this.mouse.originalEvent;
+
+    var isRightButton = e.button === 2 || e.which === 3;
+
+    if(hit)
+    {
+        displayObject[ isRightButton ? '_isRightDown' : '_isLeftDown' ] = true;
+        this.dispatchEvent( displayObject, isRightButton ? 'rightdown' : 'mousedown', this.eventData );
+    }
+};
+
+
+
+/**
+ * Is called when the mouse button is released on the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse button being released
+ * @private
+ */
+InteractionManager.prototype.onMouseUp = function (event)
+{
+    this.mouse.originalEvent = event;
+    this.eventData.data = this.mouse;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
+
+    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseUp, true );
+};
+
+/**
+ * Processes the result of the mouse up check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processMouseUp = function ( displayObject, hit )
+{
+    var e = this.mouse.originalEvent;
+
+    var isRightButton = e.button === 2 || e.which === 3;
+    var isDown =  isRightButton ? '_isRightDown' : '_isLeftDown';
+
+    if(hit)
+    {
+        this.dispatchEvent( displayObject, isRightButton ? 'rightup' : 'mouseup', this.eventData );
+
+        if( displayObject[ isDown ] )
+        {
+            displayObject[ isDown ] = false;
+            this.dispatchEvent( displayObject, isRightButton ? 'rightclick' : 'click', this.eventData );
+        }
+    }
+    else
+    {
+        if( displayObject[ isDown ] )
+        {
+            displayObject[ isDown ] = false;
+            this.dispatchEvent( displayObject, isRightButton ? 'rightupoutside' : 'mouseupoutside', this.eventData );
+        }
+    }
+};
+
+
+/**
+ * Is called when the mouse moves across the renderer element
+ *
+ * @param event {Event} The DOM event of the mouse moving
+ * @private
+ */
+InteractionManager.prototype.onMouseMove = function (event)
+{
+    this.mouse.originalEvent = event;
+    this.eventData.data = this.mouse;
+    this.eventData.stopped = false;
+
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
+
+    this.didMove = true;
+
+    this.cursor = 'inherit';
+
+    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseMove, true );
+
+    if (this.currentCursorStyle !== this.cursor)
+    {
+        this.currentCursorStyle = this.cursor;
+        this.interactionDOMElement.style.cursor = this.cursor;
+    }
+
+    //TODO BUG for parents ineractive object (border order issue)
+};
+
+/**
+ * Processes the result of the mouse move check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processMouseMove = function ( displayObject, hit )
+{
+    this.dispatchEvent( displayObject, 'mousemove', this.eventData);
+    this.processMouseOverOut(displayObject, hit);
+};
+
+
+/**
+ * Is called when the mouse is moved out of the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse being moved out
+ * @private
+ */
+InteractionManager.prototype.onMouseOut = function (event)
+{
+    this.mouse.originalEvent = event;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
+
+    this.interactionDOMElement.style.cursor = 'inherit';
+
+    // TODO optimize by not check EVERY TIME! maybe half as often? //
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY );
+
+    this.processInteractive( this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, false );
+};
+
+/**
+ * Processes the result of the mouse over/out check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processMouseOverOut = function ( displayObject, hit )
+{
+    if(hit)
+    {
+        if(!displayObject._over)
+        {
+            displayObject._over = true;
+            this.dispatchEvent( displayObject, 'mouseover', this.eventData );
+        }
+
+        if (displayObject.buttonMode)
+        {
+            this.cursor = displayObject.defaultCursor;
+        }
+    }
+    else
+    {
+        if(displayObject._over)
+        {
+            displayObject._over = false;
+            this.dispatchEvent( displayObject, 'mouseout', this.eventData);
+        }
+    }
+};
+
+
+/**
+ * Is called when a touch is started on the renderer element
+ *
+ * @param event {Event} The DOM event of a touch starting on the renderer view
+ * @private
+ */
+InteractionManager.prototype.onTouchStart = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length;
+
+    for (var i=0; i < cLength; i++)
+    {
+        var touchEvent = changedTouches[i];
+        //TODO POOL
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+
+        this.eventData.data = touchData;
+        this.eventData.stopped = false;
+
+        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchStart, true );
+
+        this.returnTouchData( touchData );
+    }
+};
+
+/**
+ * Processes the result of a touch check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processTouchStart = function ( displayObject, hit )
+{
+    //console.log("hit" + hit)
+    if(hit)
+    {
+        displayObject._touchDown = true;
+        this.dispatchEvent( displayObject, 'touchstart', this.eventData );
+    }
+};
+
+
+/**
+ * Is called when a touch ends on the renderer element
+ * @param event {Event} The DOM event of a touch ending on the renderer view
+ *
+ */
+InteractionManager.prototype.onTouchEnd = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length;
+
+    for (var i=0; i < cLength; i++)
+    {
+        var touchEvent = changedTouches[i];
+
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+
+        //TODO this should be passed along.. no set
+        this.eventData.data = touchData;
+        this.eventData.stopped = false;
+
+
+        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchEnd, true );
+
+        this.returnTouchData( touchData );
+    }
+};
+
+/**
+ * Processes the result of the end of a touch and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processTouchEnd = function ( displayObject, hit )
+{
+    if(hit)
+    {
+        this.dispatchEvent( displayObject, 'touchend', this.eventData );
+
+        if( displayObject._touchDown )
+        {
+            displayObject._touchDown = false;
+            this.dispatchEvent( displayObject, 'tap', this.eventData );
+        }
+    }
+    else
+    {
+        if( displayObject._touchDown )
+        {
+            displayObject._touchDown = false;
+            this.dispatchEvent( displayObject, 'touchendoutside', this.eventData );
+        }
+    }
+};
+
+/**
+ * Is called when a touch is moved across the renderer element
+ *
+ * @param event {Event} The DOM event of a touch moving across the renderer view
+ * @private
+ */
+InteractionManager.prototype.onTouchMove = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length;
+
+    for (var i=0; i < cLength; i++)
+    {
+        var touchEvent = changedTouches[i];
+
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+
+        this.eventData.data = touchData;
+        this.eventData.stopped = false;
+
+        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchMove, false );
+
+        this.returnTouchData( touchData );
+    }
+};
+
+/**
+ * Processes the result of a touch move check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processTouchMove = function ( displayObject, hit )
+{
+    hit = hit;
+    this.dispatchEvent( displayObject, 'touchmove', this.eventData);
+};
+
+/**
+ * Grabs an interaction data object from the internal pool
+ *
+ * @param touchEvent {EventData} The touch event we need to pair with an interactionData object
+ *
+ * @private
+ */
+InteractionManager.prototype.getTouchData = function (touchEvent)
+{
+    var touchData = this.interactiveDataPool.pop();
+
+    if(!touchData)
+    {
+        touchData = new InteractionData();
+    }
+
+    touchData.identifier = touchEvent.identifier;
+    this.mapPositionToPoint( touchData.global, touchEvent.clientX, touchEvent.clientY );
+
+    if(navigator.isCocoonJS)
+    {
+        touchData.global.x = touchData.global.x / this.resolution;
+        touchData.global.y = touchData.global.y / this.resolution;
+    }
+
+    touchEvent.globalX = touchData.global.x;
+    touchEvent.globalY = touchData.global.y;
+
+    return touchData;
+};
+
+/**
+ * Returns an interaction data object to the internal pool
+ *
+ * @param touchData {InteractionData} The touch data object we want to return to the pool
+ *
+ * @private
+ */
+InteractionManager.prototype.returnTouchData = function ( touchData )
+{
+    this.interactiveDataPool.push( touchData );
+};
+
+/**
+ * Destroys the interaction manager
+ */
+InteractionManager.prototype.destroy = function () {
+    this.removeEvents();
+
+    this.renderer = null;
+
+    this.mouse = null;
+
+    this.eventData = null;
+
+    this.interactiveDataPool = null;
+
+    this.interactionDOMElement = null;
+
+    this.onMouseUp = null;
+    this.processMouseUp = null;
+
+
+    this.onMouseDown = null;
+    this.processMouseDown = null;
+
+    this.onMouseMove = null;
+    this.processMouseMove = null;
+
+    this.onMouseOut = null;
+    this.processMouseOverOut = null;
+
+
+    this.onTouchStart = null;
+    this.processTouchStart = null;
+
+    this.onTouchEnd = null;
+    this.processTouchEnd = null;
+
+    this.onTouchMove = null;
+    this.processTouchMove = null;
+
+    this._tempPoint = null;
+};
+
+core.WebGLRenderer.registerPlugin('interaction', InteractionManager);
+core.CanvasRenderer.registerPlugin('interaction', InteractionManager);
+
+},{"../core":31,"./InteractionData":118,"./interactiveTarget":121}],120:[function(require,module,exports){
+/**
+ * @file        Main export of the PIXI interactions library
+ * @author      Mat Groves <mat@goodboydigital.com>
+ * @copyright   2013-2015 GoodBoyDigital
+ * @license     {@link https://github.com/GoodBoyDigital/pixi.js/blob/master/LICENSE|MIT License}
+ */
+
+/**
+ * @namespace PIXI.interaction
+ */
+module.exports = {
+    InteractionData:    require('./InteractionData'),
+    InteractionManager: require('./InteractionManager'),
+    interactiveTarget:  require('./interactiveTarget')
+};
+
+},{"./InteractionData":118,"./InteractionManager":119,"./interactiveTarget":121}],121:[function(require,module,exports){
+/**
+ * Default property values of interactive objects
+ * used by {@link PIXI.interaction.InteractionManager}.
+ *
+ * @mixin
+ * @memberof PIXI.interaction
+ * @example
+ *      function MyObject() {}
+ *
+ *      Object.assign(
+ *          MyObject.prototype,
+ *          PIXI.interaction.interactiveTarget
+ *      );
+ */
+var interactiveTarget = {
+    /**
+     * @todo Needs docs.
+     */
+    interactive: false,
+    /**
+     * @todo Needs docs.
+     */
+    buttonMode: false,
+    /**
+     * @todo Needs docs.
+     */
+    interactiveChildren: true,
+    /**
+     * @todo Needs docs.
+     */
+    defaultCursor: 'pointer',
+
+    // some internal checks..
+
+    /**
+     * @todo Needs docs.
+     * @private
+     */
+    _over: false,
+    /**
+     * @todo Needs docs.
+     * @private
+     */
+    _touchDown: false
+};
+
+module.exports = interactiveTarget;
+
+},{}],122:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     core = require('../core'),
     extras = require('../extras'),
@@ -25096,7 +25885,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31,"../extras":88,"path":2,"resource-loader":15}],120:[function(require,module,exports){
+},{"../core":31,"../extras":87,"path":2,"resource-loader":14}],123:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI loaders library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -25117,7 +25906,7 @@ module.exports = {
     Resource:           require('resource-loader').Resource
 };
 
-},{"./bitmapFontParser":119,"./loader":121,"./spritesheetParser":122,"./textureParser":123,"resource-loader":15}],121:[function(require,module,exports){
+},{"./bitmapFontParser":122,"./loader":124,"./spritesheetParser":125,"./textureParser":126,"resource-loader":14}],124:[function(require,module,exports){
 var ResourceLoader = require('resource-loader'),
     textureParser = require('./textureParser'),
     spritesheetParser = require('./spritesheetParser'),
@@ -25179,7 +25968,7 @@ var Resource = ResourceLoader.Resource;
 
 Resource.setExtensionXhrType('fnt', Resource.XHR_RESPONSE_TYPE.DOCUMENT);
 
-},{"./bitmapFontParser":119,"./spritesheetParser":122,"./textureParser":123,"resource-loader":15}],122:[function(require,module,exports){
+},{"./bitmapFontParser":122,"./spritesheetParser":125,"./textureParser":126,"resource-loader":14}],125:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     path = require('path'),
     core = require('../core');
@@ -25262,7 +26051,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31,"path":2,"resource-loader":15}],123:[function(require,module,exports){
+},{"../core":31,"path":2,"resource-loader":14}],126:[function(require,module,exports){
 var core = require('../core');
 
 module.exports = function ()
@@ -25281,7 +26070,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31}],124:[function(require,module,exports){
+},{"../core":31}],127:[function(require,module,exports){
 var core = require('../core'),
     tempPoint = new core.Point(),
     tempPolygon = new core.Polygon();
@@ -25762,7 +26551,7 @@ Mesh.DRAW_MODES = {
     TRIANGLES: 1
 };
 
-},{"../core":31}],125:[function(require,module,exports){
+},{"../core":31}],128:[function(require,module,exports){
 var Mesh = require('./Mesh');
 var core = require('../core');
 
@@ -25975,7 +26764,7 @@ Rope.prototype.updateTransform = function ()
     this.containerUpdateTransform();
 };
 
-},{"../core":31,"./Mesh":124}],126:[function(require,module,exports){
+},{"../core":31,"./Mesh":127}],129:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -25993,7 +26782,7 @@ module.exports = {
     MeshShader:     require('./webgl/MeshShader')
 };
 
-},{"./Mesh":124,"./Rope":125,"./webgl/MeshRenderer":127,"./webgl/MeshShader":128}],127:[function(require,module,exports){
+},{"./Mesh":127,"./Rope":128,"./webgl/MeshRenderer":130,"./webgl/MeshShader":131}],130:[function(require,module,exports){
 var core = require('../../core'),
     Mesh = require('../Mesh');
 
@@ -26207,7 +26996,7 @@ MeshRenderer.prototype.destroy = function ()
 {
 };
 
-},{"../../core":31,"../Mesh":124}],128:[function(require,module,exports){
+},{"../../core":31,"../Mesh":127}],131:[function(require,module,exports){
 var core = require('../../core');
 
 /**
@@ -26268,7 +27057,7 @@ module.exports = StripShader;
 
 core.ShaderManager.registerPlugin('meshShader', StripShader);
 
-},{"../../core":31}],129:[function(require,module,exports){
+},{"../../core":31}],132:[function(require,module,exports){
 // References:
 // https://github.com/sindresorhus/object-assign
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
@@ -26278,11 +27067,11 @@ if (!Object.assign)
     Object.assign = require('object-assign');
 }
 
-},{"object-assign":11}],130:[function(require,module,exports){
+},{"object-assign":10}],133:[function(require,module,exports){
 require('./Object.assign');
 require('./requestAnimationFrame');
 
-},{"./Object.assign":129,"./requestAnimationFrame":131}],131:[function(require,module,exports){
+},{"./Object.assign":132,"./requestAnimationFrame":134}],134:[function(require,module,exports){
 (function (global){
 // References:
 // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
@@ -26353,7 +27142,7 @@ if (!global.cancelAnimationFrame) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}]},{},[118])(118)
+},{}]},{},[117])(117)
 });
 
 

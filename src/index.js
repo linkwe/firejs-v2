@@ -1,31 +1,23 @@
-// run the polyfills
 // require('./polyfill');
 
-// var core = module.exports = require('./core');
+// global.Q = module.exports = require('./application');
 
-// add core plugins.
-// core.extras         = require('./extras');
-// core.filters        = require('./filters');
+
+
+
+require('./polyfill');
+var core = module.exports = require('./core');
+
+core.app = require('./application');
+
+core.extras         = require('./extras');
+core.filters        = require('./filters');
 // core.interaction    = require('./interaction');
-// core.loaders        = require('./loaders');
-// core.mesh           = require('./mesh');
+core.loaders        = require('./loaders');
+core.mesh           = require('./mesh');
+core.loader = new core.loaders.Loader();
 
-// export a premade loader instance
-/**
- * A premade instance of the loader that can be used to loader resources.
- *
- * @name loader
- * @memberof PIXI
- * @property {PIXI.loaders.Loader}
- */
-// core.loader = new core.loaders.Loader();
 
-// mixin the deprecation features.
-// Object.assign(core, require('./deprecation'));
+global.Q = global.PIXI = core;//Object.assign(core,app);
 
-// Always export pixi globally.
 
-var core = module.exports = require('./expand');
-
-global.PIXI = core;
-global.Q = core;

@@ -334,10 +334,10 @@ DisplayObject.prototype.updateTransform = function ()
     }
 
     // multiply the alphas..
-    this.worldAlpha = this.alpha * this.parent.worldAlpha;
+    this.worldAlpha = this.alpha * this.parent.worldAlpha ;
 
     // reset the bounds each time this is called!
-    this._currentBounds = null;
+    this._currentBounds = null ;
 };
 
 // performance increase to avoid using call.. (10x faster)
@@ -345,10 +345,10 @@ DisplayObject.prototype.displayObjectUpdateTransform = DisplayObject.prototype.u
 
 /**
  *
- *
  * Retrieves the bounds of the displayObject as a rectangle object
  *
  * @param matrix {Matrix}
+ * 
  * @return {Rectangle} the rectangular bounding area
  */
 DisplayObject.prototype.getBounds = function (matrix) // jshint unused:false
@@ -461,4 +461,5 @@ DisplayObject.prototype.destroy = function ()
 
     this.worldTransform = null;
     this.filterArea = null;
+    
 };

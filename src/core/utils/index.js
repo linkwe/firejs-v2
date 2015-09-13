@@ -172,7 +172,9 @@ var utils = module.exports = {
             return;
         }
 
-        if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1)
+        window.console.log(type);
+
+        /*if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1)
         {
             var args = [
                 '\n %c %c %c Pixi.js ' + CONST.VERSION + ' - ✰ ' + type + ' ✰  %c ' + ' %c ' + ' http://www.pixijs.com/  %c %c ♥%c♥%c♥ \n\n',
@@ -192,7 +194,7 @@ var utils = module.exports = {
         else if (window.console)
         {
             window.console.log('Pixi.js ' + CONST.VERSION + ' - ' + type + ' - http://www.pixijs.com/'); //jshint ignore:line
-        }
+        }*/
 
         utils._saidHello = true;
     },

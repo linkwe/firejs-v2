@@ -1,21 +1,26 @@
-
-
+var core = require('../core'),
+EventEmitter = require('eventemitter3');
 
 var app ;
 
 function Application(ops){
 
+
     if(app) return app ;
+
+    EventEmitter.call(this);
 
     app = this;
 
+    this.loader = new core.loaders.Loader(); 
+
     this.resolution = ops.resolution || 1 ;
 
-    var _w,_h;
+    var _w, _h ;
 
     if(ops.element){
 
-        this.element = a.element;
+        this.element = ops.element;
         _w = this.element.clientWidth;
         _h = this.element.clientHeight;
 
@@ -27,40 +32,84 @@ function Application(ops){
 
     }
 
-    this.width  = _w;//this.resolution * _w ;
-    this.height = _h;//this.resolution * _h ;
+    this.width  = _w ;//this.resolution * _w ;
+    
+    this.height = _h ;//this.resolution * _h ;
 
     this.atyView = new core.View();
 
-    this.renderer = null;
+    this.renderer = core.autoDetectRenderer(this.width,this.height,this.resolution);
 
     this._lastView = null;
 
-    this.GUI = new Container();
+    this.GUI = new core.Container() ;
 
-    var container = new Container();
+    var container = new core.Container();
 
-    container.addChild(this.atyView);
+    container.addChild(this.atyView) ;
 
-    container.addChild(this.GUI);
+    container.addChild(this.GUI) ;
 
-    this.container =container;
+    this.container = container;
 
     this.autoRender = true;
 
+    core.ticker.shared.add(this.update, this);
 
+    this._initApplication(ops);
 
 }
 
-
-
+Application.prototype = Object.create(EventEmitter.prototype);
 Application.prototype.constructor = Application;
+
+module.exports = Application;
+
+
+Application.prototype._initApplication = function(ops){
+
+    this.loadResources(ops.launch,ops.resources);
+
+};
+
+Application.prototype.loadResources = function(launch,resources){
+
+    var me = this,loader = this.loader ;
+
+    loader.one('progress',function(a,b){
+        me.emit( 'progress', a, b );
+    });
+
+    if(launch){
+        loader.add(res.launch).load(function(a,b){
+            me.emit('launch',a,b);
+        });
+    }
+
+    if(resources){
+        loader.add(resources).load(function(a,b){
+            me.emit('init',a,b);
+        });
+    }
+
+    if(!resources) me.emit('init');
+
+};
 
 Application.prototype.initControllers = function() {
 
 };
 
-module.exports = Application;
+
+Application.prototype.update = function() {
+    this.autoRender&&this.redraw();
+};
+
+Application.prototype.redraw = function() {
+    this.renderer.render(this.container);
+};
+
+
 
 /*
 var App = _class({
