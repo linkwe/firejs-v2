@@ -2948,13 +2948,14 @@ EventEmitter.prototype.listeners = function listeners(event, exists) {
 EventEmitter.prototype._emit = function(event , sign, a1, a2, a3, a4) {
   var _bak;
   if(sign&8){
-      event.fn.call(event.context,a1,a2,a3,a4)
+      _bak = event.fn.call(event.context,a1,a2,a3,a4)
   }else if(sign&16){
     for(var i=0,l = event.length;i<l;i++)
       event[i].fn.call(event[i].context,a1,a2,a3,a4);
   }else{
-    event.fn.call(event.context,a1,a2,a3,a4)
+    _bak = event.fn.call(event.context,a1,a2,a3,a4)
   }
+  return _bak;
 }
 
 
@@ -2989,7 +2990,7 @@ EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
       if(this._emit(ls.inj,ty,a1,a2,a3,a4))_bak = true;
     }else{
       if(this._emit(ls.inj,ty,a1,a2,a3,a4))_bak = true;
-      if(!ibak&&this._emit(ls.fn,ty,a1,a2,a3,a4))_bak = true;
+      if(!_bak&&this._emit(ls.fn,ty,a1,a2,a3,a4))_bak = true;
     }
   }else{
     if(this._emit(ls.fn,ty,a1,a2,a3,a4))_bak = true;
@@ -3087,12 +3088,12 @@ EventEmitter.prototype.addInj = function(event, fn, context, d) {
   if (!this._events) this._events = prefix ? {} : Object.create(null);
   if (!this._events[evt]) this._events[evt] = new EE( null, ev, d ? 14 : 10);
   else{
-    var _inj = this._events[evt]._inj;
-    if (!_inj) this._events[evt]._inj = ev;
+    var _inj = this._events[evt].inj;
+    if (!_inj) this._events[evt].inj = ev;
     else if(Object.prototype.toString.call(_inj) === '[object Array]')_inj.push(ev);
     else if('function' === typeof fn)
-      this._events[evt]._inj = [ _inj, ev ];
-    this._events[evt].sign = this._events[evt].sign | ( d ? 14 : 10 ) ;
+      this._events[evt].inj = [ _inj, ev ];
+      this._events[evt].sign = this._events[evt].sign | ( d ? 14 : 10 ) ;
   }
   return this;
 
@@ -4625,6 +4626,2171 @@ module.exports={
 }
 
 },{}],18:[function(require,module,exports){
+var core = require('../core'),
+EventEmitter = require('eventemitter3');
+
+var app ;
+
+function Application(ops){
+
+    if(app) return app ;
+
+    EventEmitter.call(this);
+
+    app = this;
+
+    this.loader = new core.loaders.Loader(); 
+
+    this.resolution = ops.resolution || 1 ;
+
+    var _w, _h ;
+
+    if(ops.element){
+
+        this.element = ops.element;
+        _w = this.element.clientWidth;
+        _h = this.element.clientHeight;
+
+    }else{
+
+        this.element = document.body;
+        _w = document.documentElement.clientWidth;
+        _h = document.documentElement.clientHeight;
+
+    }
+
+    this.width  = _w ;//this.resolution * _w ;
+    
+    this.height = _h ;//this.resolution * _h ;
+
+    this.atyView = new core.View();
+
+    this.renderer = core.autoDetectRenderer(this.width,this.height,this.resolution);
+
+    this._lastView = null;
+
+    this.GUI = new core.Container() ;
+
+    var container = new core.Container();
+
+    container.addChild(this.atyView) ;
+
+    container.addChild(this.GUI) ;
+
+    this.container = container;
+
+    this.autoRender = true;
+
+    core.ticker.shared.add(this.update, this);
+
+    this._initApplication(ops);
+
+}
+
+Application.prototype = Object.create(EventEmitter.prototype);
+Application.prototype.constructor = Application;
+
+module.exports = Application;
+
+
+Application.prototype._initApplication = function(ops){
+
+    this.loadResources(ops.launch,ops.resources);
+
+};
+
+Application.prototype.loadResources = function(launch,resources){
+
+    var me = this,loader = this.loader ;
+
+    loader.one('progress',function(a,b){
+        me.emit( 'progress', a, b );
+    });
+
+    if(launch){
+        loader.add(res.launch).load(function(a,b){
+            me.emit('launch',a,b);
+        });
+    }
+
+    if(resources){
+        loader.add(resources).load(function(a,b){
+            me.emit('init',a,b);
+        });
+    }
+
+    if(!resources) me.emit('init');
+
+};
+
+Application.prototype.initControllers = function() {
+
+};
+
+
+Application.prototype.update = function() {
+    this.autoRender&&this.redraw();
+};
+
+Application.prototype.redraw = function() {
+    this.renderer.render(this.container);
+};
+
+
+
+/*
+var App = _class({
+    
+    className:'App',
+    constructor:function(a){
+        if(miao.app)return miao.app;
+
+        a= a||{};
+
+        Q.app = this;
+
+        this.resolution = a.resolution || 1;
+
+        var _w,_h;
+
+        if(a.element){
+
+            this.element = a.element;
+            _w = this.element.clientWidth;
+            _h = this.element.clientHeight;
+
+        }else{
+
+            this.element = document.body;
+            _w = document.documentElement.clientWidth;
+            _h = document.documentElement.clientHeight;
+
+        }
+
+        this.width  = _w;//this.resolution * _w ;
+        this.height = _h;//this.resolution * _h ;
+
+        this.atyView = new _class.View();
+
+        this.renderer = null;
+
+        this._lastView = null;
+
+        this.GUI = new Container();
+
+        var container = new Container();
+
+        container.addChild(this.atyView);
+
+        container.addChild(this.GUI);
+
+        this.container =container;
+
+        this.autoRender = true;
+
+        utils.setRenderer(this,a.noWebGL);
+        miao.Transitions(this.renderer,this.width,this.height,this.resolution);
+        this.renderer.backgroundColor = 0x000000;
+        pulse.setHand(this.update.bind(this));
+
+         if(!miao.pulse.sw)pulse.start();
+
+        if(a.listener){
+            for(var i in a.listener){
+                if(fn.isF(a.listener[i]))
+                message.on(this,i,a.listener[i]);
+            }
+        }
+
+        if(this._listener['advance']){
+            message.trigger(this,'advance',this._init.bind(this,a));
+        }else{
+             this._init(a);
+        }
+
+    },
+    update:function(){
+
+        if(this.run)this.run();//this.atyView.run();
+        this.autoRender&&this.renderer.render(this.container);
+       
+    },
+    _init:function(a){
+
+        message.inj(this,'down',function(e){
+
+            // console.log('dsfdf')
+
+            this.container.interaction(miao.event.now,'down',e);
+
+        });
+
+        message.inj(this,'move',function(e){
+
+            this.container.interaction(miao.event.now,'move',e);
+            // this.GUI.interaction(miao.event.now,'move');
+            // message.trigger(this.atyView,'move');
+        });
+
+        message.inj(this,'up',function(e){
+
+            this.container.interaction(miao.event.now,'up',e);
+            // message.trigger(this.atyView,'up');
+        });
+
+       
+
+        if(a.R){
+            miao.R.loadRes(a.R,function(){
+
+                message.trigger(miao.app,'init');
+            },function(a,b,c,d){
+                
+                message.trigger(miao.app,'loading',{i:a,length:b,name:c,src:d});
+            });
+        }else{
+            message.trigger(this,'init');
+        }
+
+    },
+    // interaction:function(point,name,ops){
+
+
+
+    //     message.trigger(this.atyView,name);
+
+    //     this.GUI.interaction(miao.event.now,'move');
+    //     message.trigger(this.atyView,name);
+
+    // },
+
+    backView:function(a,b){
+        if(this._lastView)this.go(this._lastView,a,b);
+        return this;
+    },
+
+    getView:function(a){
+        if(!a){
+            return this.atyView;
+        }else if(g.viewsCache[a]){
+            return g.viewsCache[a];
+        }
+    },
+
+    go:function(a,b,c){
+
+        var  acy;
+        
+        if(fn.isS(a)){
+
+          acy = this.getView(a);
+          if(!acy)return;
+
+        }else if( fn.inof(a,'View') ) {
+
+          acy = a;
+
+        }else{return}
+
+        g.selector = acy;
+
+        var now = this._lastView = this.atyView;
+        var the = this;
+        // console.log(acy.backgroundColor, this.renderer.backgroundColor);
+
+        if(this.renderer&&(acy.backgroundColor != this.renderer.backgroundColor))
+            this.renderer.backgroundColor = acy.backgroundColor ;
+
+        message.trigger(acy,'fast',b);
+
+        if(fn.isF(c)){
+            miao.Transitions({
+                ta:now,
+                tb:acy,
+                cak:qie,
+                transitions:c
+            });
+
+        }else{
+            qie();
+        }
+
+
+        function qie(){
+
+            acy.parent = the.container;
+            the.container.children[0] = acy;
+
+            if(now){
+                message.trigger(now,'unload');
+                //now.visible = false;
+            }
+
+            acy.visible = true; 
+            the.atyView = acy;
+            acy.renderer = the.renderer;
+            message.trigger(acy,'init',b);
+            message.trigger(acy,'toggle',b);
+
+            the.run = acy.run || false;
+
+            // console.log(the.run);
+
+        }
+    }
+});
+*/
+},{"../core":39,"eventemitter3":9}],19:[function(require,module,exports){
+var core = require('../core');
+
+
+function InteractionData()
+{
+    /**
+     * This point stores the global coords of where the touch/mouse event happened
+     *
+     * @member {Point}
+     */
+    this.global = new core.Point();
+
+
+    this.start = new core.Point();
+
+    /**
+     * The target Sprite that was interacted with
+     *
+     * @member {Sprite}
+     */
+    this.target = null;
+
+    /**
+     * When passed to an event handler, this will be the original DOM Event that was captured
+     *
+     * @member {Event}
+     */
+    this.originalEvent = null;
+
+
+    this.stopped = false;
+
+    this.type = null;
+      
+}
+
+InteractionData.prototype.constructor = InteractionData;
+
+/**
+ * This will return the local coordinates of the specified displayObject for this InteractionData
+ *
+ * @param displayObject {DisplayObject} The DisplayObject that you would like the local coords off
+ * @param [point] {Point} A Point object in which to store the value, optional (otherwise will create a new point)
+ * param [globalPos] {Point} A Point object containing your custom global coords, optional (otherwise will use the current global coords)
+ * @return {Point} A point containing the coordinates of the InteractionData position relative to the DisplayObject
+ */
+InteractionData.prototype.getLocalPosition = function (displayObject, point, globalPos)
+{
+    var worldTransform = displayObject.worldTransform;
+    var global = globalPos ? globalPos : this.global;
+
+    var a00 = worldTransform.a, a01 = worldTransform.c, a02 = worldTransform.tx,
+        a10 = worldTransform.b, a11 = worldTransform.d, a12 = worldTransform.ty,
+        id = 1 / (a00 * a11 + a01 * -a10);
+
+    point = point || new core.Point();
+
+    point.x = a11 * id * global.x + -a01 * id * global.x + (a12 * a01 - a02 * a11) * id;
+    point.y = a00 * id * global.y + -a10 * id * global.y + (-a12 * a00 + a02 * a10) * id;
+
+    return point;
+};
+
+
+InteractionData.prototype.stopPropagation = function ()
+{
+   this.stopped = true ;
+};
+
+/**
+ * The interaction manager deals with mouse and touch events. Any DisplayObject can be interactive
+ * if its interactive parameter is set to true
+ * This manager also supports multitouch.
+ * 
+ * @class
+ * @memberof PIXI.interaction
+ * @param renderer {CanvasRenderer|WebGLRenderer} A reference to the current renderer
+ * @param [options] { object }
+ * @param [options.autoPreventDefault=true] {boolean} Should the manager automatically prevent default browser actions.
+ * @param [options.interactionFrequency=10] {number} Frequency increases the interaction events will be checked.
+ */
+function InteractionManager(renderer, options)
+{
+    options = options || {};
+
+    /**
+     * The renderer this interaction manager works for.
+     *
+     * @member {SystemRenderer}
+     */
+    this.renderer = renderer;
+
+
+    this.rocuo = 8;
+
+    /**
+     * Should default browser actions automatically be prevented.
+     *
+     * @member {boolean}
+     * @default true
+     */
+    this.autoPreventDefault = options.autoPreventDefault !== undefined ? options.autoPreventDefault : true;
+
+    /**
+     * As this frequency increases the interaction events will be checked more often.
+     *
+     * @member {number}
+     * @default 10
+     */
+    this.interactionFrequency = options.interactionFrequency || 10;
+
+    /**
+     * An event data object to handle all the event tracking/dispatching
+     *
+     * @member {EventData}
+     */
+    this.eventData = new InteractionData();
+
+    this.touchPool = [];
+
+
+    /**
+     * Tiny little interactiveData pool !
+     *
+     * @member {Array}
+     */
+    this.interactiveDataPool = [];
+
+
+    /**
+     * The DOM element to bind to.
+     *
+     * @member {HTMLElement}
+     * @private
+     */
+    this.interactionDOMElement = null;
+
+    /**
+     * Have events been attached to the dom element?
+     *
+     * @member {boolean}
+     * @private
+     */
+    this.eventsAdded = false;
+
+    //this will make it so that you don't have to call bind all the time
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseUp = this.onMouseUp.bind(this);
+    // this.processMouseUp = this.processMouseUp.bind( this );
+
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseDown = this.onMouseDown.bind(this);
+    // this.processMouseDown = this.processMouseDown.bind( this );
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseMove = this.onMouseMove.bind( this );
+    // this.processMouseMove = this.processMouseMove.bind( this );
+
+    /**
+     * @member {Function}
+     */
+    this.onMouseOut = this.onMouseOut.bind(this);
+    // this.processMouseOverOut = this.processMouseOverOut.bind( this );
+
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchStart = this.onTouchStart.bind(this);
+    // this.processTouchStart = this.processTouchStart.bind(this);
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchEnd = this.onTouchEnd.bind(this);
+    // this.processTouchEnd = this.processTouchEnd.bind(this);
+
+    /**
+     * @member {Function}
+     */
+    this.onTouchMove = this.onTouchMove.bind(this);
+    // this.processTouchMove = this.processTouchMove.bind(this);
+
+    /**
+     * @member {number}
+     */
+    this.last = 0;
+
+    /**
+     * The css style of the cursor that is being used
+     * @member {string}
+     */
+    this.currentCursorStyle = 'inherit';
+
+    /**
+     * Internal cached var
+     * @member {Point}
+     * @private
+     */
+    this._tempPoint = new core.Point();
+
+    /**
+     * The current resolution
+     * @member {number}
+     */
+    this.resolution = 1;
+
+    this.setTargetElement(this.renderer.view, this.renderer.resolution);
+}
+
+InteractionManager.prototype.constructor = InteractionManager;
+module.exports = InteractionManager;
+
+/**
+ * Sets the DOM element which will receive mouse/touch events. This is useful for when you have
+ * other DOM elements on top of the renderers Canvas element. With this you'll be bale to deletegate
+ * another DOM element to receive those events.
+ *
+ * @param element {HTMLElement} the DOM element which will receive mouse and touch events.
+ * @param [resolution=1] {number} THe resolution of the new element (relative to the canvas).
+ * @private
+ */
+InteractionManager.prototype.setTargetElement = function (element, resolution)
+{
+    this.removeEvents();
+
+    this.interactionDOMElement = element;
+
+    this.resolution = resolution || 1;
+
+    this.rocuo = this.resolution * 8 ;
+
+    this.addEvents();
+};
+
+/**
+ * Registers all the DOM events
+ * @private
+ */
+InteractionManager.prototype.addEvents = function ()
+{
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    // core.ticker.shared.add(this.update, this);
+
+    if (window.navigator.msPointerEnabled)
+    {
+        this.interactionDOMElement.style['-ms-content-zooming'] = 'none';
+        this.interactionDOMElement.style['-ms-touch-action'] = 'none';
+    }
+
+    window.document.addEventListener('mousemove',    this.onMouseMove, true);
+    this.interactionDOMElement.addEventListener('mousedown',    this.onMouseDown, true);
+    this.interactionDOMElement.addEventListener('mouseout',     this.onMouseOut, true);
+
+    this.interactionDOMElement.addEventListener('touchstart',   this.onTouchStart, true);
+    this.interactionDOMElement.addEventListener('touchend',     this.onTouchEnd, true);
+    this.interactionDOMElement.addEventListener('touchmove',    this.onTouchMove, true);
+
+    window.addEventListener('mouseup',  this.onMouseUp, true);
+
+    this.eventsAdded = true;
+};
+
+/**
+ * Removes all the DOM events that were previously registered
+ * @private
+ */
+InteractionManager.prototype.removeEvents = function ()
+{
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    // core.ticker.shared.remove(this.update);
+
+    if (window.navigator.msPointerEnabled)
+    {
+        this.interactionDOMElement.style['-ms-content-zooming'] = '';
+        this.interactionDOMElement.style['-ms-touch-action'] = '';
+    }
+
+    window.document.removeEventListener('mousemove', this.onMouseMove, true);
+    this.interactionDOMElement.removeEventListener('mousedown', this.onMouseDown, true);
+    this.interactionDOMElement.removeEventListener('mouseout',  this.onMouseOut, true);
+
+    this.interactionDOMElement.removeEventListener('touchstart', this.onTouchStart, true);
+    this.interactionDOMElement.removeEventListener('touchend',  this.onTouchEnd, true);
+    this.interactionDOMElement.removeEventListener('touchmove', this.onTouchMove, true);
+
+    this.interactionDOMElement = null;
+
+    window.removeEventListener('mouseup',  this.onMouseUp, true);
+
+    this.eventsAdded = false;
+};
+
+/**
+ * Updates the state of interactive objects.
+ * Invoked by a throttled ticker update from
+ * {@link PIXI.ticker.shared}.
+ *
+ * @param deltaTime {number}
+ */
+InteractionManager.prototype.update = function (deltaTime)
+{
+    this._deltaTime += deltaTime;
+
+    if (this._deltaTime < this.interactionFrequency)
+    {
+        return;
+    }
+
+    this._deltaTime = 0;
+
+    if (!this.interactionDOMElement)
+    {
+        return;
+    }
+
+    // if the user move the mouse this check has already been dfone using the mouse move!
+    if(this.didMove)
+    {
+        this.didMove = false;
+        return;
+    }
+
+    this.cursor = 'inherit';
+
+    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, true );
+
+    if (this.currentCursorStyle !== this.cursor)
+    {
+        this.currentCursorStyle = this.cursor;
+        this.interactionDOMElement.style.cursor = this.cursor;
+    }
+
+    //TODO
+};
+
+/**
+ * Dispatches an event on the display object that was interacted with
+ * @param displayObject {Container|Sprite|TilingSprite} the display object in question
+ * @param eventString {string} the name of the event (e.g, mousedown)
+ * @param eventData {EventData} the event data object
+ * @private
+ */
+InteractionManager.prototype.dispatchEvent = function ( displayObject, eventString, eventData )
+{
+    // if(!eventData.stopped)
+    // {
+    //     eventData.target = displayObject;
+    //     eventData.type = eventString;
+
+    //     displayObject.emit( eventString, eventData );
+
+    //     if( displayObject[eventString] )
+    //     {
+    //         displayObject[eventString]( eventData );
+    //     }
+    // }
+};
+
+/**
+ * Maps x and y coords from a DOM object and maps them correctly to the pixi view. 
+ * The resulting value is stored in the point.
+ * This takes into account the fact that the DOM element could be scaled and positioned anywhere on the screen.
+ * @param  {Point} point the point that the result will be stored in
+ * @param  {number} x     the x coord of the position to map
+ * @param  {number} y     the y coord of the position to map
+ */
+InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
+{
+    var rect = this.interactionDOMElement.getBoundingClientRect();
+    point.x = ( ( x - rect.left ) * (this.interactionDOMElement.width  / rect.width  ) ) / this.resolution;
+    point.y = ( ( y - rect.top  ) * (this.interactionDOMElement.height / rect.height ) ) / this.resolution;
+};
+
+/**
+ * This function is provides a neat way of crawling through the scene graph and running a specified function on all interactive objects it finds.
+ * It will also take care of hit testing the interactive objects and passes the hit across in the function.
+ *
+ * @param  {Point} point the point that is tested for collision
+ * @param  {Container|Sprite|TilingSprite} displayObject the displayObject that will be hit test (recurcsivly crawls its children)
+ * @param  {function} func the function that will be called on each interactive object. The displayObject and hit will be passed to the function
+ * @param  {boolean} hitTest this indicates if the objects inside should be hit test against the point
+ * @return {boolean} returns true if the displayObject hit the point
+ */
+InteractionManager.prototype.processInteractive = function ( evdate, evname)
+{
+    if(!displayObject.enabled)
+    {
+        return false;
+    }
+
+    evdate.type = evname;
+
+    this.renderer._lastObjectRendered.interaction(evname,evdate);
+
+};
+
+
+
+
+/**
+ * Is called when the mouse button is pressed down on the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse button being pressed down
+ * @private
+ */
+InteractionManager.prototype.onMouseDown = function (event)
+{
+    this.eventData.originalEvent = event;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    this.eventData.start.x  = this.eventData.global.x;
+    this.eventData.start.y  = this.eventData.global.y;
+
+    if (this.autoPreventDefault)
+    {
+        this.eventData.originalEvent.preventDefault();
+    }
+
+    var isRightButton = event.button === 2 || event.which === 3;
+    var isDown =  isRightButton ? 'mousedown' : 'mouseldown';
+
+    this.processInteractive( this.eventData, isDown );
+
+};
+
+/**
+ * Is called when the mouse button is released on the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse button being released
+ * @private
+ */
+InteractionManager.prototype.onMouseUp = function (event)
+{
+    this.eventData.originalEvent = event;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    var isRightButton = event.button === 2 || event.which === 3;
+        isDown =  isRightButton ? 'mouseup' : 'mouselup' ;
+
+    this.processInteractive( this.eventData, isDown );
+
+    var _x = this.eventData.global.x - this.eventData.start.x,
+        _y = this.eventData.global.y - this.eventData.start.y;
+
+    if(  Math.pow(_x*_x+_y*_y,.5) < this.rocuo)
+    this.processInteractive( this.eventData, 'click' );
+    
+
+};
+
+
+/**
+ * Is called when the mouse moves across the renderer element
+ *
+ * @param event {Event} The DOM event of the mouse moving
+ * @private
+ */
+InteractionManager.prototype.onMouseMove = function (event)
+{
+    this.eventData.originalEvent = event;
+    this.eventData.stopped = false;
+
+    this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    this.didMove = true;
+
+    this.cursor = 'inherit';
+
+    this.processInteractive( this.eventData, 'mousemove' );
+
+    if (this.currentCursorStyle !== this.cursor)
+    {
+        this.currentCursorStyle = this.cursor;
+        this.interactionDOMElement.style.cursor = this.cursor;
+    }
+
+    //TODO BUG for parents ineractive object (border order issue)
+};
+
+
+
+/**
+ * Is called when the mouse is moved out of the renderer element
+ *
+ * @param event {Event} The DOM event of a mouse being moved out
+ * @private
+ */
+InteractionManager.prototype.onMouseOut = function (event)
+{
+    this.eventData.originalEvent = event;
+    this.eventData.stopped = false;
+
+    // Update internal mouse reference
+    this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    this.interactionDOMElement.style.cursor = 'inherit';
+
+    // TODO optimize by not check EVERY TIME! maybe half as often? //
+    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY );
+
+    this.processInteractive( this.eventData, 'mouseout' );
+};
+
+/**
+ * Processes the result of the mouse over/out check and dispatches the event if need be
+ *
+ * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
+ * @param hit {boolean} the result of the hit test on the display object
+ * @private
+ */
+InteractionManager.prototype.processMouseOverOut = function ( displayObject, hit )
+{
+    // if(hit)
+    // {
+    //     if(!displayObject._over)
+    //     {
+    //         displayObject._over = true;
+    //         this.dispatchEvent( displayObject, 'mouseover', this.eventData );
+    //     }
+
+    //     if (displayObject.buttonMode)
+    //     {
+    //         this.cursor = displayObject.defaultCursor;
+    //     }
+    // }
+    // else
+    // {
+    //     if(displayObject._over)
+    //     {
+    //         displayObject._over = false;
+    //         this.dispatchEvent( displayObject, 'mouseout', this.eventData);
+    //     }
+    // }
+};
+
+
+/**
+ * Is called when a touch is started on the renderer element
+ *
+ * @param event {Event} The DOM event of a touch starting on the renderer view
+ * @private
+ */
+InteractionManager.prototype.onTouchStart = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length, _x, _y;
+
+    for (var i=0; i < cLength; i++)
+    {
+
+        var touchEvent = changedTouches[i];
+
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+        touchData.stopped = false;
+
+        touchEvent.startX = touchEvent.globalX;
+        touchEvent.startY = touchEvent.globalY;
+
+        this.processInteractive( touchData, 'touchstart');
+
+        this.returnTouchData( touchData );
+    }
+};
+
+
+/**
+ * Is called when a touch ends on the renderer element
+ * @param event {Event} The DOM event of a touch ending on the renderer view
+ *
+ */
+InteractionManager.prototype.onTouchEnd = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length , _x , _y;
+
+    for (var i=0; i < cLength; i++)
+    {
+        var touchEvent = changedTouches[i];
+
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+        touchData.stopped = false;
+
+        this.processInteractive( touchData, 'touchend' );
+
+        _x = touchEvent.globalX - touchEvent.startX ;
+        _y = touchEvent.globalY - touchEvent.startY ;
+
+        if(  Math.pow(_x*_x+_y*_y,.5) < this.rocuo)
+        this.processInteractive( touchData, 'tap' );
+
+        this.returnTouchData( touchData );
+    }
+};
+
+
+
+/**
+ * Is called when a touch is moved across the renderer element
+ *
+ * @param event {Event} The DOM event of a touch moving across the renderer view
+ * @private
+ */
+InteractionManager.prototype.onTouchMove = function (event)
+{
+    if (this.autoPreventDefault)
+    {
+        event.preventDefault();
+    }
+
+    var changedTouches = event.changedTouches;
+    var cLength = changedTouches.length;
+
+    for (var i=0; i < cLength; i++)
+    {
+        var touchEvent = changedTouches[i];
+
+        var touchData = this.getTouchData( touchEvent );
+
+        touchData.originalEvent = event;
+        touchData.stopped = false;
+
+        this.processInteractive( touchData, 'touchmove' );
+
+        this.returnTouchData( touchData );
+    }
+};
+
+
+
+/**
+ * Grabs an interaction data object from the internal pool
+ *
+ * @param touchEvent {EventData} The touch event we need to pair with an interactionData object
+ *
+ * @private
+ */
+InteractionManager.prototype.getTouchData = function ( touchEvent , id )
+{
+
+    var touchData = this.interactiveDataPool.pop();
+
+
+    // var touchData = this.touchPool[id] ;
+
+
+     // || this.interactiveDataPool.pop();
+
+    if(!touchData)
+    {
+        touchData = new InteractionData();
+        // this.touchPool[id] = touchData;
+    }
+
+    touchData.identifier = touchEvent.identifier;
+    this.mapPositionToPoint( touchData.global, touchEvent.clientX, touchEvent.clientY );
+
+    if(navigator.isCocoonJS)
+    {
+        touchData.global.x = touchData.global.x / this.resolution;
+        touchData.global.y = touchData.global.y / this.resolution;
+    }
+
+    touchEvent.globalX = touchData.global.x;
+    touchEvent.globalY = touchData.global.y;
+
+    return touchData;
+};
+
+/**
+ * Returns an interaction data object to the internal pool
+ *
+ * @param touchData {InteractionData} The touch data object we want to return to the pool
+ *
+ * @private
+ */
+InteractionManager.prototype.returnTouchData = function ( touchData )
+{
+    this.interactiveDataPool.push( touchData );
+};
+
+/**
+ * Destroys the interaction manager
+ */
+InteractionManager.prototype.destroy = function () {
+
+    this.removeEvents();
+
+    this.renderer = null;
+
+    this.mouse = null;
+
+    this.eventData = null;
+
+    this.interactiveDataPool = null;
+
+    this.interactionDOMElement = null;
+
+    this.onMouseUp = null;
+    this.processMouseUp = null;
+
+
+    this.onMouseDown = null;
+    this.processMouseDown = null;
+
+    this.onMouseMove = null;
+    this.processMouseMove = null;
+
+    this.onMouseOut = null;
+    this.processMouseOverOut = null;
+
+
+    this.onTouchStart = null;
+    this.processTouchStart = null;
+
+    this.onTouchEnd = null;
+    this.processTouchEnd = null;
+
+    this.onTouchMove = null;
+    this.processTouchMove = null;
+
+    this._tempPoint = null;
+
+};
+
+core.WebGLRenderer.registerPlugin('interaction', InteractionManager);
+core.CanvasRenderer.registerPlugin('interaction', InteractionManager);
+
+},{"../core":39}],20:[function(require,module,exports){
+var utils = require('../core').utils;
+
+var _require = function(){
+
+    var modules = [] , ms = [] ;
+        
+    var exe = function(_a){
+
+        utils.loadScript(_a.src,function(){
+
+            var _o = modules.length>1 ? modules:modules.length == 1 && modulesmodules[0] || null;
+
+            modules = [];
+
+            _a.name&&(ms[_a.name] = _o);
+
+            _a.cak&&_a.cak(_o);
+
+        });
+    };
+
+    return {
+
+        load:function( options, progress, complete ){
+
+            if( Array.isArray(options) ){
+                var l = options.length , count = 0 , syn = [] , other = [] , i = 0 ;
+                options.forEach(function(m){m.syn?syn.push(m):other.push(m)});
+                !function req(_i){
+                    var me,_cak;
+                    if(i<syn.length){
+                        me = syn[_i];
+                        _cak = me.cak;
+                        me.cak = function(op){
+                            _cak(op);
+                            count++;
+                            progress&&progress({src:me.src,idx:count,length:l});
+                            req(++i);
+                        };
+                        exe(me);
+                    }else if(other.length>0){
+                        other.forEach(function(m){
+                            var __cak = me.cak;
+                            me.cak = function(op){
+                                count++;
+                                progress&&progress({src:me.src,idx:count,length:l});
+                                __cak(op);
+                            }
+                        });
+                    }else{ complete&&complete() }
+                }(i);
+
+            }else{exe(options)}
+        },
+
+        getmodule:function(name){
+            return ms[name];
+        }
+    }
+}();
+
+module.exports = _require;
+
+},{"../core":39}],21:[function(require,module,exports){
+
+
+
+var __class = {};
+
+/**
+ * [bindClass description]
+ * @param  {[type]} name    类名
+ * @param  {[type]} source  类--构造函数
+ * @param  {[type]} factory 如何价工厂化的实现，默认是将参数做为数组.
+ * @return {[type]}         返回一个该类的工厂方法
+ */
+function bindClass( name, source, factory ){
+    if(__class[name])return false;
+    /**
+     * 工厂化接口
+     * @param  {[type]} _class 类的构造函数
+     * @param  {[type]} ops    实例化的参数
+     * @return {[type]}        返回实例化的对象
+     */
+    factory = factory || function( _class , ops){
+        var c, b = ops;
+        if(Object.prototype.toString.call(ops)==='[object Array]'){
+            switch(b.length)
+            {
+                case 1 :c = new _class[a](b[0]);break;
+                case 2 :c = new _class[a](b[0],b[1]); break;
+                case 3 :c = new _class[a](b[0],b[1],b[2]); break;
+                case 4 :c = new _class[a](b[0],b[1],b[2],b[3]);break;
+                case 5 :c = new _class[a](b[0],b[1],b[2],b[3],b[4]);break;
+                case 6 :c = new _class[a](b[0],b[1],b[2],b[3],b[4],b[5]);break;
+                default:c = new _class[a]();break;
+            }
+        }else{
+            c = new _class(b);
+        }
+        return c;
+    }
+    __class[name] = factory.bind( null, source );
+    return true;
+};
+
+
+/**
+ * [factoryObject description]
+ * @param  {[type]} name 需要实例化的名称
+ * @param  {[type]} ops  实例化的参数
+ * @return {[type]}      实例化一个对象，并且返回
+ */
+function factoryObject( name , ops ){
+    return __class[name] && __class[name](ops) || null;
+};
+
+
+module.exports = {
+    __class:__class,
+    bindClass:bindClass,
+    factoryObject:factoryObject
+};
+},{}],22:[function(require,module,exports){
+require('./modify');
+require('./making');
+
+module.exports = {
+    require:require('./_require'),
+    factory:require('./factory'),
+    interaction:require('./Interaction'),
+    Application:require('./Application'),
+    requests:require('./requests')
+};
+
+},{"./Application":18,"./Interaction":19,"./_require":20,"./factory":21,"./making":23,"./modify":24,"./requests":25}],23:[function(require,module,exports){
+var factory = require('./factory'),
+    core = require('../core'),
+    _tempPoint = new core.Point();
+
+factory.bindClass('Image',core.Image,function(c,ops){
+    ops = ops||{};
+    var obj = new c({
+        texture:ops.texture,
+        url:ops.url,
+        resId:ops.resId
+    });
+    return qset.call(obj,ops,null,['texture','url','resId']);
+});
+
+factory.bindClass('Image',core.Image,function(c,ops){
+    ops = ops||{};
+    var obj = new c({
+        texture:ops.texture,
+        url:ops.url,
+        resId:ops.resId
+    });
+    return qset.call(obj,ops,null,['texture','url','resId']);
+});
+
+
+function qset( ops, isfunc, exc )
+{
+    ops = ops||{};
+    var isCV = !!ops.cover && Object.prototype.toString.call(ops.cover)==='[object Object]';
+
+    if(Object.prototype.toString.call(exc)!=='[object Array]')exc=[];
+
+    if(isCV)exc.push('cover');
+
+    for(var i in ops){
+        if(exc.indexOf(i)!=-1)continue;
+        if(this[i]!==undefined&&typeof this[i]!=='function')this[i]=ops[i];
+    }
+
+    if(isCV)for(var i in ops.cover)this[i]=ops.cover[i];
+
+    if(isfunc!==false)for(var i in ops){
+        if(exc.indexOf(i)!=-1)continue;
+        if(this[i]==='function')this[i](ops[i]);
+    }
+
+    return this;
+}
+},{"../core":39,"./factory":21}],24:[function(require,module,exports){
+
+var core = require('../core');
+// Mix interactiveTarget into core.DisplayObject.prototype
+Object.assign(
+    core.DisplayObject.prototype,
+    {
+        interactive: false,
+        /**
+         * @todo Needs docs.
+         */
+        buttonMode: false,
+        /**
+         * @todo Needs docs.
+         */
+        interactiveChildren: true,
+        /**
+         * @todo Needs docs.
+         */
+        defaultCursor: 'pointer',
+
+        /**
+         * @todo Needs docs.
+         * @private
+         */
+        _over: false,
+        /**
+         * @todo Needs docs.
+         * @private
+         */
+        _touchDown: false,
+
+        /**
+         * @todo Needs docs.
+         * @private
+         */
+        enabled: false
+    }
+);
+
+Object.defineProperties(core.DisplayObject.prototype,{
+
+    interaction:{value:function( name, evDate, hit ){
+
+        if( !this.enabled || evDate.stopped ) return ;
+        this.containsPoint( evDate.global )&&this.emit( name, evDate );
+
+    }},
+
+    containsPoint:{value:function(point){ /** TODO:*/ }},
+
+    enabled:{value:true},
+
+    scaleX: {
+        
+        get: function ()
+        {
+            return this.scale.x;
+        },
+        set: function (value)
+        {
+            this.scale.x = value;
+        }
+    },
+    scaleY: {
+        get: function ()
+        {
+            return this.scale.y;
+        },
+        set: function (value)
+        {
+            this.scale.y = value;
+        }
+    },
+
+    angle: {
+        get: function ()
+        {
+            return this.rotation / core.DEG_TO_RAD;
+        },
+        set: function (value)
+        {
+            this.rotation = 
+            value * core.DEG_TO_RAD ;
+        }
+    }
+});
+
+
+Object.defineProperties(core.Container.prototype,{
+
+    interaction:{value:function( name , evDate, hit ){
+
+        if(!this.enabled || evDate.stopped)return;
+
+        this.containsPoint(evDate.global)&&this.emit(name,evDate);
+
+        var children = this.children;
+
+        if(this.interactiveChildren)
+        {
+            for (var i = children.length-1; i >= 0; i--)
+            {
+                if(evDate.stopped)return;
+                children[i].interaction(name , evDate, hit);
+            }
+        }
+    }},
+    createItems:{value:function( ops ){
+
+       
+    }}
+});
+
+
+/**
+ * CONST
+ */
+// qset.call(core.utils,{
+//     cover:{
+//         getRes:function(){
+
+//         }
+//     }
+// });
+},{"../core":39}],25:[function(require,module,exports){
+!function (name, context, definition) {
+ module.exports = definition();
+}('req', this, function () {
+
+  var context = this
+
+  if ('window' in context) {
+    var doc = document
+      , byTag = 'getElementsByTagName'
+      , head = doc[byTag]('head')[0]
+  } else {
+    var XHR2
+    try {
+      // prevent browserify including xhr2
+      var xhr2 = 'xhr2'
+      XHR2 = require(xhr2)
+    } catch (ex) {
+      throw new Error('Peer dependency `xhr2` required! Please npm install xhr2')
+    }
+  }
+
+
+  var httpsRe = /^http/
+    , protocolRe = /(^\w+):\/\//
+    , twoHundo = /^(20\d|1223)$/ //http://stackoverflow.com/questions/10046972/msie-returns-status-code-of-1223-for-ajax-request
+    , readyState = 'readyState'
+    , contentType = 'Content-Type'
+    , requestedWith = 'X-Requested-With'
+    , uniqid = 0
+    , callbackPrefix = 'reqwest_' + (+new Date())
+    , lastValue // data stored by the most recent JSONP callback
+    , xmlHttpRequest = 'XMLHttpRequest'
+    , xDomainRequest = 'XDomainRequest'
+    , noop = function () {}
+
+    , isArray = typeof Array.isArray == 'function'
+        ? Array.isArray
+        : function (a) {
+            return a instanceof Array
+          }
+
+    , defaultHeaders = {
+          'contentType': 'application/x-www-form-urlencoded'
+        , 'requestedWith': xmlHttpRequest
+        , 'accept': {
+              '*':  'text/javascript, text/html, application/xml, text/xml, */*'
+            , 'xml':  'application/xml, text/xml'
+            , 'html': 'text/html'
+            , 'text': 'text/plain'
+            , 'json': 'application/json, text/javascript'
+            , 'js':   'application/javascript, text/javascript'
+          }
+      }
+
+    , xhr = function(o) {
+        // is it x-domain
+        if (o['crossOrigin'] === true) {
+          var xhr = context[xmlHttpRequest] ? new XMLHttpRequest() : null
+          if (xhr && 'withCredentials' in xhr) {
+            return xhr
+          } else if (context[xDomainRequest]) {
+            return new XDomainRequest()
+          } else {
+            throw new Error('Browser does not support cross-origin requests')
+          }
+        } else if (context[xmlHttpRequest]) {
+          return new XMLHttpRequest()
+        } else if (XHR2) {
+          return new XHR2()
+        } else {
+          return new ActiveXObject('Microsoft.XMLHTTP')
+        }
+      }
+    , globalSetupOptions = {
+        dataFilter: function (data) {
+          return data
+        }
+      }
+
+  function succeed(r) {
+    var protocol = protocolRe.exec(r.url)
+    protocol = (protocol && protocol[1]) || context.location.protocol
+    return httpsRe.test(protocol) ? twoHundo.test(r.request.status) : !!r.request.response
+  }
+
+  function handleReadyState(r, success, error) {
+    return function () {
+      // use _aborted to mitigate against IE err c00c023f
+      // (can't read props on aborted request objects)
+      if (r._aborted) return error(r.request)
+      if (r._timedOut) return error(r.request, 'Request is aborted: timeout')
+      if (r.request && r.request[readyState] == 4) {
+        r.request.onreadystatechange = noop
+        if (succeed(r)) success(r.request)
+        else
+          error(r.request)
+      }
+    }
+  }
+
+  function setHeaders(http, o) {
+    var headers = o['headers'] || {}
+      , h
+
+    headers['Accept'] = headers['Accept']
+      || defaultHeaders['accept'][o['type']]
+      || defaultHeaders['accept']['*']
+
+    var isAFormData = typeof FormData === 'function' && (o['data'] instanceof FormData);
+    // breaks cross-origin requests with legacy browsers
+    if (!o['crossOrigin'] && !headers[requestedWith]) headers[requestedWith] = defaultHeaders['requestedWith']
+    if (!headers[contentType] && !isAFormData) headers[contentType] = o['contentType'] || defaultHeaders['contentType']
+    for (h in headers)
+      headers.hasOwnProperty(h) && 'setRequestHeader' in http && http.setRequestHeader(h, headers[h])
+  }
+
+  function setCredentials(http, o) {
+    if (typeof o['withCredentials'] !== 'undefined' && typeof http.withCredentials !== 'undefined') {
+      http.withCredentials = !!o['withCredentials']
+    }
+  }
+
+  function generalCallback(data) {
+    lastValue = data
+  }
+
+  function urlappend (url, s) {
+    return url + (/\?/.test(url) ? '&' : '?') + s
+  }
+
+  function handleJsonp(o, fn, err, url) {
+    var reqId = uniqid++
+      , cbkey = o['jsonpCallback'] || 'callback' // the 'callback' key
+      , cbval = o['jsonpCallbackName'] || reqwest.getcallbackPrefix(reqId)
+      , cbreg = new RegExp('((^|\\?|&)' + cbkey + ')=([^&]+)')
+      , match = url.match(cbreg)
+      , script = doc.createElement('script')
+      , loaded = 0
+      , isIE10 = navigator.userAgent.indexOf('MSIE 10.0') !== -1
+
+    if (match) {
+      if (match[3] === '?') {
+        url = url.replace(cbreg, '$1=' + cbval) // wildcard callback func name
+      } else {
+        cbval = match[3] // provided callback func name
+      }
+    } else {
+      url = urlappend(url, cbkey + '=' + cbval) // no callback details, add 'em
+    }
+
+    context[cbval] = generalCallback
+
+    script.type = 'text/javascript'
+    script.src = url
+    script.async = true
+    if (typeof script.onreadystatechange !== 'undefined' && !isIE10) {
+      // need this for IE due to out-of-order onreadystatechange(), binding script
+      // execution to an event listener gives us control over when the script
+      // is executed. See http://jaubourg.net/2010/07/loading-script-as-onclick-handler-of.html
+      script.htmlFor = script.id = '_reqwest_' + reqId
+    }
+
+    script.onload = script.onreadystatechange = function () {
+      if ((script[readyState] && script[readyState] !== 'complete' && script[readyState] !== 'loaded') || loaded) {
+        return false
+      }
+      script.onload = script.onreadystatechange = null
+      script.onclick && script.onclick()
+      // Call the user callback with the last value stored and clean up values and scripts.
+      fn(lastValue)
+      lastValue = undefined
+      head.removeChild(script)
+      loaded = 1
+    }
+
+    // Add the script to the DOM head
+    head.appendChild(script)
+
+    // Enable JSONP timeout
+    return {
+      abort: function () {
+        script.onload = script.onreadystatechange = null
+        err({}, 'Request is aborted: timeout', {})
+        lastValue = undefined
+        head.removeChild(script)
+        loaded = 1
+      }
+    }
+  }
+
+  function getRequest(fn, err) {
+    var o = this.o
+      , method = (o['method'] || 'GET').toUpperCase()
+      , url = typeof o === 'string' ? o : o['url']
+      // convert non-string objects to query-string form unless o['processData'] is false
+      , data = (o['processData'] !== false && o['data'] && typeof o['data'] !== 'string')
+        ? reqwest.toQueryString(o['data'])
+        : (o['data'] || null)
+      , http
+      , sendWait = false
+
+    // if we're working on a GET request and we have data then we should append
+    // query string to end of URL and not post data
+    if ((o['type'] == 'jsonp' || method == 'GET') && data) {
+      url = urlappend(url, data)
+      data = null
+    }
+
+    if (o['type'] == 'jsonp') return handleJsonp(o, fn, err, url)
+
+    // get the xhr from the factory if passed
+    // if the factory returns null, fall-back to ours
+    http = (o.xhr && o.xhr(o)) || xhr(o)
+
+    http.open(method, url, o['async'] === false ? false : true)
+    setHeaders(http, o)
+    setCredentials(http, o)
+    if (context[xDomainRequest] && http instanceof context[xDomainRequest]) {
+        http.onload = fn
+        http.onerror = err
+        // NOTE: see
+        // http://social.msdn.microsoft.com/Forums/en-US/iewebdevelopment/thread/30ef3add-767c-4436-b8a9-f1ca19b4812e
+        http.onprogress = function() {}
+        sendWait = true
+    } else {
+      http.onreadystatechange = handleReadyState(this, fn, err)
+    }
+    o['before'] && o['before'](http)
+    if (sendWait) {
+      setTimeout(function () {
+        http.send(data)
+      }, 200)
+    } else {
+      http.send(data)
+    }
+    return http
+  }
+
+  function Reqwest(o, fn) {
+    this.o = o
+    this.fn = fn
+
+    init.apply(this, arguments)
+  }
+
+  function setType(header) {
+    // json, javascript, text/plain, text/html, xml
+    if (header === null) return undefined; //In case of no content-type.
+    if (header.match('json')) return 'json'
+    if (header.match('javascript')) return 'js'
+    if (header.match('text')) return 'html'
+    if (header.match('xml')) return 'xml'
+  }
+
+  function init(o, fn) {
+
+    this.url = typeof o == 'string' ? o : o['url']
+    this.timeout = null
+
+    // whether request has been fulfilled for purpose
+    // of tracking the Promises
+    this._fulfilled = false
+    // success handlers
+    this._successHandler = function(){}
+    this._fulfillmentHandlers = []
+    // error handlers
+    this._errorHandlers = []
+    // complete (both success and fail) handlers
+    this._completeHandlers = []
+    this._erred = false
+    this._responseArgs = {}
+
+    var self = this
+
+    fn = fn || function () {}
+
+    if (o['timeout']) {
+      this.timeout = setTimeout(function () {
+        timedOut()
+      }, o['timeout'])
+    }
+
+    if (o['success']) {
+      this._successHandler = function () {
+        o['success'].apply(o, arguments)
+      }
+    }
+
+    if (o['error']) {
+      this._errorHandlers.push(function () {
+        o['error'].apply(o, arguments)
+      })
+    }
+
+    if (o['complete']) {
+      this._completeHandlers.push(function () {
+        o['complete'].apply(o, arguments)
+      })
+    }
+
+    function complete (resp) {
+      o['timeout'] && clearTimeout(self.timeout)
+      self.timeout = null
+      while (self._completeHandlers.length > 0) {
+        self._completeHandlers.shift()(resp)
+      }
+    }
+
+    function success (resp) {
+      var type = o['type'] || resp && setType(resp.getResponseHeader('Content-Type')) // resp can be undefined in IE
+      resp = (type !== 'jsonp') ? self.request : resp
+      // use global data filter on response text
+      var filteredResponse = globalSetupOptions.dataFilter(resp.responseText, type)
+        , r = filteredResponse
+      try {
+        resp.responseText = r
+      } catch (e) {
+        // can't assign this in IE<=8, just ignore
+      }
+      if (r) {
+        switch (type) {
+        case 'json':
+          try {
+            resp = context.JSON ? context.JSON.parse(r) : eval('(' + r + ')')
+          } catch (err) {
+            return error(resp, 'Could not parse JSON in response', err)
+          }
+          break
+        case 'js':
+          resp = eval(r)
+          break
+        case 'html':
+          resp = r
+          break
+        case 'xml':
+          resp = resp.responseXML
+              && resp.responseXML.parseError // IE trololo
+              && resp.responseXML.parseError.errorCode
+              && resp.responseXML.parseError.reason
+            ? null
+            : resp.responseXML
+          break
+        }
+      }
+
+      self._responseArgs.resp = resp
+      self._fulfilled = true
+      fn(resp)
+      self._successHandler(resp)
+      while (self._fulfillmentHandlers.length > 0) {
+        resp = self._fulfillmentHandlers.shift()(resp)
+      }
+
+      complete(resp)
+    }
+
+    function timedOut() {
+      self._timedOut = true
+      self.request.abort()
+    }
+
+    function error(resp, msg, t) {
+      resp = self.request
+      self._responseArgs.resp = resp
+      self._responseArgs.msg = msg
+      self._responseArgs.t = t
+      self._erred = true
+      while (self._errorHandlers.length > 0) {
+        self._errorHandlers.shift()(resp, msg, t)
+      }
+      complete(resp)
+    }
+
+    this.request = getRequest.call(this, success, error)
+  }
+
+  Reqwest.prototype = {
+    abort: function () {
+      this._aborted = true
+      this.request.abort()
+    }
+
+  , retry: function () {
+      init.call(this, this.o, this.fn)
+    }
+
+    /**
+     * Small deviation from the Promises A CommonJs specification
+     * http://wiki.commonjs.org/wiki/Promises/A
+     */
+
+    /**
+     * `then` will execute upon successful requests
+     */
+  , then: function (success, fail) {
+      success = success || function () {}
+      fail = fail || function () {}
+      if (this._fulfilled) {
+        this._responseArgs.resp = success(this._responseArgs.resp)
+      } else if (this._erred) {
+        fail(this._responseArgs.resp, this._responseArgs.msg, this._responseArgs.t)
+      } else {
+        this._fulfillmentHandlers.push(success)
+        this._errorHandlers.push(fail)
+      }
+      return this
+    }
+
+    /**
+     * `always` will execute whether the request succeeds or fails
+     */
+  , always: function (fn) {
+      if (this._fulfilled || this._erred) {
+        fn(this._responseArgs.resp)
+      } else {
+        this._completeHandlers.push(fn)
+      }
+      return this
+    }
+
+    /**
+     * `fail` will execute when the request fails
+     */
+  , fail: function (fn) {
+      if (this._erred) {
+        fn(this._responseArgs.resp, this._responseArgs.msg, this._responseArgs.t)
+      } else {
+        this._errorHandlers.push(fn)
+      }
+      return this
+    }
+  , 'catch': function (fn) {
+      return this.fail(fn)
+    }
+  }
+
+  function reqwest(o, fn) {
+    return new Reqwest(o, fn)
+  }
+
+  // normalize newline variants according to spec -> CRLF
+  function normalize(s) {
+    return s ? s.replace(/\r?\n/g, '\r\n') : ''
+  }
+
+  function serial(el, cb) {
+    var n = el.name
+      , t = el.tagName.toLowerCase()
+      , optCb = function (o) {
+          // IE gives value="" even where there is no value attribute
+          // 'specified' ref: http://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-862529273
+          if (o && !o['disabled'])
+            cb(n, normalize(o['attributes']['value'] && o['attributes']['value']['specified'] ? o['value'] : o['text']))
+        }
+      , ch, ra, val, i
+
+    // don't serialize elements that are disabled or without a name
+    if (el.disabled || !n) return
+
+    switch (t) {
+    case 'input':
+      if (!/reset|button|image|file/i.test(el.type)) {
+        ch = /checkbox/i.test(el.type)
+        ra = /radio/i.test(el.type)
+        val = el.value
+        // WebKit gives us "" instead of "on" if a checkbox has no value, so correct it here
+        ;(!(ch || ra) || el.checked) && cb(n, normalize(ch && val === '' ? 'on' : val))
+      }
+      break
+    case 'textarea':
+      cb(n, normalize(el.value))
+      break
+    case 'select':
+      if (el.type.toLowerCase() === 'select-one') {
+        optCb(el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null)
+      } else {
+        for (i = 0; el.length && i < el.length; i++) {
+          el.options[i].selected && optCb(el.options[i])
+        }
+      }
+      break
+    }
+  }
+
+  // collect up all form elements found from the passed argument elements all
+  // the way down to child elements; pass a '<form>' or form fields.
+  // called with 'this'=callback to use for serial() on each element
+  function eachFormElement() {
+    var cb = this
+      , e, i
+      , serializeSubtags = function (e, tags) {
+          var i, j, fa
+          for (i = 0; i < tags.length; i++) {
+            fa = e[byTag](tags[i])
+            for (j = 0; j < fa.length; j++) serial(fa[j], cb)
+          }
+        }
+
+    for (i = 0; i < arguments.length; i++) {
+      e = arguments[i]
+      if (/input|select|textarea/i.test(e.tagName)) serial(e, cb)
+      serializeSubtags(e, [ 'input', 'select', 'textarea' ])
+    }
+  }
+
+  // standard query string style serialization
+  function serializeQueryString() {
+    return reqwest.toQueryString(reqwest.serializeArray.apply(null, arguments))
+  }
+
+  // { 'name': 'value', ... } style serialization
+  function serializeHash() {
+    var hash = {}
+    eachFormElement.apply(function (name, value) {
+      if (name in hash) {
+        hash[name] && !isArray(hash[name]) && (hash[name] = [hash[name]])
+        hash[name].push(value)
+      } else hash[name] = value
+    }, arguments)
+    return hash
+  }
+
+  // [ { name: 'name', value: 'value' }, ... ] style serialization
+  reqwest.serializeArray = function () {
+    var arr = []
+    eachFormElement.apply(function (name, value) {
+      arr.push({name: name, value: value})
+    }, arguments)
+    return arr
+  }
+
+  reqwest.serialize = function () {
+    if (arguments.length === 0) return ''
+    var opt, fn
+      , args = Array.prototype.slice.call(arguments, 0)
+
+    opt = args.pop()
+    opt && opt.nodeType && args.push(opt) && (opt = null)
+    opt && (opt = opt.type)
+
+    if (opt == 'map') fn = serializeHash
+    else if (opt == 'array') fn = reqwest.serializeArray
+    else fn = serializeQueryString
+
+    return fn.apply(null, args)
+  }
+
+  reqwest.toQueryString = function (o, trad) {
+    var prefix, i
+      , traditional = trad || false
+      , s = []
+      , enc = encodeURIComponent
+      , add = function (key, value) {
+          // If value is a function, invoke it and return its value
+          value = ('function' === typeof value) ? value() : (value == null ? '' : value)
+          s[s.length] = enc(key) + '=' + enc(value)
+        }
+    // If an array was passed in, assume that it is an array of form elements.
+    if (isArray(o)) {
+      for (i = 0; o && i < o.length; i++) add(o[i]['name'], o[i]['value'])
+    } else {
+      // If traditional, encode the "old" way (the way 1.3.2 or older
+      // did it), otherwise encode params recursively.
+      for (prefix in o) {
+        if (o.hasOwnProperty(prefix)) buildParams(prefix, o[prefix], traditional, add)
+      }
+    }
+
+    // spaces should be + according to spec
+    return s.join('&').replace(/%20/g, '+')
+  }
+
+  function buildParams(prefix, obj, traditional, add) {
+    var name, i, v
+      , rbracket = /\[\]$/
+
+    if (isArray(obj)) {
+      // Serialize array item.
+      for (i = 0; obj && i < obj.length; i++) {
+        v = obj[i]
+        if (traditional || rbracket.test(prefix)) {
+          // Treat each array item as a scalar.
+          add(prefix, v)
+        } else {
+          buildParams(prefix + '[' + (typeof v === 'object' ? i : '') + ']', v, traditional, add)
+        }
+      }
+    } else if (obj && obj.toString() === '[object Object]') {
+      // Serialize object item.
+      for (name in obj) {
+        buildParams(prefix + '[' + name + ']', obj[name], traditional, add)
+      }
+
+    } else {
+      // Serialize scalar item.
+      add(prefix, obj)
+    }
+  }
+
+  reqwest.getcallbackPrefix = function () {
+    return callbackPrefix
+  }
+
+  reqwest.compat = function (o, fn) {
+    if (o) {
+      o['type'] && (o['method'] = o['type']) && delete o['type']
+      o['dataType'] && (o['type'] = o['dataType'])
+      o['jsonpCallback'] && (o['jsonpCallbackName'] = o['jsonpCallback']) && delete o['jsonpCallback']
+      o['jsonp'] && (o['jsonpCallback'] = o['jsonp'])
+    }
+    return new Reqwest(o, fn)
+  }
+
+  reqwest.ajaxSetup = function (options) {
+    options = options || {}
+    for (var k in options) {
+      globalSetupOptions[k] = options[k]
+    }
+  }
+
+  return reqwest
+});
+
+
+/*
+reqwest('path/to/html', function (resp) {
+  qwery('#content').html(resp)
+})
+
+reqwest({
+    url: 'path/to/html'
+  , method: 'post'
+  , data: { foo: 'bar', baz: 100 }
+  , success: function (resp) {
+      qwery('#content').html(resp)
+    }
+})
+
+reqwest({
+    url: 'path/to/html'
+  , method: 'get'
+  , data: [ { name: 'foo', value: 'bar' }, { name: 'baz', value: 100 } ]
+  , success: function (resp) {
+      qwery('#content').html(resp)
+    }
+})
+
+reqwest({
+    url: 'path/to/json'
+  , type: 'json'
+  , method: 'post'
+  , error: function (err) { }
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+})
+
+reqwest({
+    url: 'path/to/json'
+  , type: 'json'
+  , method: 'post'
+  , contentType: 'application/json'
+  , headers: {
+      'X-My-Custom-Header': 'SomethingImportant'
+    }
+  , error: function (err) { }
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+})
+
+// Uses XMLHttpRequest2 credentialled requests (cookies, HTTP basic auth) if supported
+reqwest({
+    url: 'path/to/json'
+  , type: 'json'
+  , method: 'post'
+  , contentType: 'application/json'
+  , crossOrigin: true
+  , withCredentials: true
+  , error: function (err) { }
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+})
+
+reqwest({
+    url: 'path/to/data.jsonp?callback=?'
+  , type: 'jsonp'
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+})
+
+reqwest({
+    url: 'path/to/data.jsonp?foo=bar'
+  , type: 'jsonp'
+  , jsonpCallback: 'foo'
+  , jsonpCallbackName: 'bar'
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+})
+
+reqwest({
+    url: 'path/to/data.jsonp?foo=bar'
+  , type: 'jsonp'
+  , jsonpCallback: 'foo'
+  , success: function (resp) {
+      qwery('#content').html(resp.content)
+    }
+  , complete: function (resp) {
+      qwery('#hide-this').hide()
+    }
+})
+Promises
+
+reqwest({
+    url: 'path/to/data.jsonp?foo=bar'
+  , type: 'jsonp'
+  , jsonpCallback: 'foo'
+})
+  .then(function (resp) {
+    qwery('#content').html(resp.content)
+  }, function (err, msg) {
+    qwery('#errors').html(msg)
+  })
+  .always(function (resp) {
+    qwery('#hide-this').hide()
+  })
+reqwest({
+    url: 'path/to/data.jsonp?foo=bar'
+  , type: 'jsonp'
+  , jsonpCallback: 'foo'
+})
+  .then(function (resp) {
+    qwery('#content').html(resp.content)
+  })
+  .fail(function (err, msg) {
+    qwery('#errors').html(msg)
+  })
+  .always(function (resp) {
+    qwery('#hide-this').hide()
+  })
+var r = reqwest({
+    url: 'path/to/data.jsonp?foo=bar'
+  , type: 'jsonp'
+  , jsonpCallback: 'foo'
+  , success: function () {
+      setTimeout(function () {
+        r
+          .then(function (resp) {
+            qwery('#content').html(resp.content)
+          }, function (err) { })
+          .always(function (resp) {
+             qwery('#hide-this').hide()
+          })
+      }, 15)
+    }
+})
+Options
+
+url a fully qualified uri
+method http method (default: GET)
+headers http headers (default: {})
+data entity body for PATCH, POST and PUT requests. Must be a query String or JSON object
+type a string enum. html, xml, json, or jsonp. Default is inferred by resource extension. Eg: .json will set type to json. .xml to xml etc.
+contentType sets the Content-Type of the request. Eg: application/json
+crossOrigin for cross-origin requests for browsers that support this feature.
+success A function called when the request successfully completes
+error A function called when the request fails.
+complete A function called whether the request is a success or failure. Always called when complete.
+jsonpCallback Specify the callback function name for a JSONP request. This value will be used instead of the random (but recommended) name automatically generated by reqwest.
+
+ */
+},{}],26:[function(require,module,exports){
 /**
  * Constant values used in pixi
  *
@@ -4846,7 +7012,7 @@ var CONST = {
 
 module.exports = CONST;
 
-},{"../../package.json":17}],19:[function(require,module,exports){
+},{"../../package.json":17}],27:[function(require,module,exports){
 var math = require('../math'),
     DisplayObject = require('./DisplayObject'),
     RenderTexture = require('../textures/RenderTexture'),
@@ -5420,7 +7586,7 @@ Container.prototype.destroy = function (destroyChildren)
     this.children = null;
 };
 
-},{"../math":34,"../textures/RenderTexture":73,"./DisplayObject":20}],20:[function(require,module,exports){
+},{"../math":42,"../textures/RenderTexture":81,"./DisplayObject":28}],28:[function(require,module,exports){
 var math = require('../math'),
     RenderTexture = require('../textures/RenderTexture'),
     EventEmitter = require('eventemitter3'),
@@ -5887,7 +8053,7 @@ DisplayObject.prototype.destroy = function ()
     
 };
 
-},{"../const":18,"../math":34,"../textures/RenderTexture":73,"eventemitter3":9}],21:[function(require,module,exports){
+},{"../const":26,"../math":42,"../textures/RenderTexture":81,"eventemitter3":9}],29:[function(require,module,exports){
 var Container = require('../display/Container'),
     Texture = require('../textures/Texture'),
     CanvasBuffer = require('../renderers/canvas/utils/CanvasBuffer'),
@@ -7067,7 +9233,7 @@ Graphics.prototype.destroy = function () {
     this._localBounds = null;
 };
 
-},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/canvas/utils/CanvasGraphics":47,"../textures/Texture":74,"./GraphicsData":22}],22:[function(require,module,exports){
+},{"../const":26,"../display/Container":27,"../math":42,"../renderers/canvas/utils/CanvasBuffer":54,"../renderers/canvas/utils/CanvasGraphics":55,"../textures/Texture":82,"./GraphicsData":30}],30:[function(require,module,exports){
 /**
  * A GraphicsData object.
  *
@@ -7157,7 +9323,7 @@ GraphicsData.prototype.destroy = function () {
     this.shape = null;
 };
 
-},{}],23:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -7223,7 +9389,7 @@ Object.defineProperties(gCircle.prototype, {
 
 
 
-},{"../math":34,"./gRect":26}],24:[function(require,module,exports){
+},{"../math":42,"./gRect":34}],32:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -7272,7 +9438,7 @@ Object.defineProperties(gEllipse.prototype, {
 
 
 
-},{"../math":34,"./gRect":26}],25:[function(require,module,exports){
+},{"../math":42,"./gRect":34}],33:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math'),
     CONST = require('../const'),
@@ -7436,7 +9602,7 @@ gLine.prototype.drawShape = function (shape)
 
     return data;
 };
-},{"../const":18,"../math":34,"./Graphics":21,"./GraphicsData":22}],26:[function(require,module,exports){
+},{"../const":26,"../math":42,"./Graphics":29,"./GraphicsData":30}],34:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math');
 
@@ -7584,7 +9750,7 @@ gRect.prototype.clear = function ()
 
     return this;
 };
-},{"../math":34,"./Graphics":21}],27:[function(require,module,exports){
+},{"../math":42,"./Graphics":29}],35:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -7623,7 +9789,7 @@ Object.defineProperties(gRoundedRect.prototype, {
 
 
 
-},{"../math":34,"./gRect":26}],28:[function(require,module,exports){
+},{"../math":42,"./gRect":34}],36:[function(require,module,exports){
 var utils = require('../../utils'),
     math = require('../../math'),
     CONST = require('../../const'),
@@ -8527,7 +10693,7 @@ GraphicsRenderer.prototype.buildPoly = function (graphicsData, webGLData)
     return true;
 };
 
-},{"../../const":18,"../../math":34,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64,"../../utils":79,"./WebGLGraphicsData":29,"./earcut":30}],29:[function(require,module,exports){
+},{"../../const":26,"../../math":42,"../../renderers/webgl/WebGLRenderer":58,"../../renderers/webgl/utils/ObjectRenderer":72,"../../utils":87,"./WebGLGraphicsData":37,"./earcut":38}],37:[function(require,module,exports){
 /**
  * An object containing WebGL specific properties to be used by the WebGL renderer
  *
@@ -8645,7 +10811,7 @@ WebGLGraphicsData.prototype.destroy = function () {
     this.glIndices = null;
 };
 
-},{}],30:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 'use strict';
 
 module.exports = earcut;
@@ -9310,7 +11476,7 @@ function Node(i) {
     this.steiner = false;
 }
 
-},{}],31:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI core library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -9410,7 +11576,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
     }
 });
 
-},{"./const":18,"./display/Container":19,"./display/DisplayObject":20,"./graphics/Graphics":21,"./graphics/GraphicsData":22,"./graphics/gCircle":23,"./graphics/gEllipse":24,"./graphics/gLine":25,"./graphics/gRect":26,"./graphics/gRoundedRect":27,"./graphics/webgl/GraphicsRenderer":28,"./math":34,"./particles/ParticleContainer":40,"./particles/webgl/ParticleRenderer":42,"./renderers/canvas/CanvasRenderer":45,"./renderers/canvas/utils/CanvasBuffer":46,"./renderers/canvas/utils/CanvasGraphics":47,"./renderers/webgl/WebGLRenderer":50,"./renderers/webgl/filters/AbstractFilter":51,"./renderers/webgl/filters/FXAAFilter":52,"./renderers/webgl/filters/SpriteMaskFilter":53,"./renderers/webgl/managers/ShaderManager":57,"./renderers/webgl/shaders/Shader":62,"./renderers/webgl/utils/ObjectRenderer":64,"./renderers/webgl/utils/RenderTarget":66,"./sprites/Image":68,"./sprites/Sprite":69,"./sprites/webgl/SpriteRenderer":70,"./text/Text":71,"./textures/BaseTexture":72,"./textures/RenderTexture":73,"./textures/Texture":74,"./textures/TextureUvs":75,"./textures/VideoBaseTexture":76,"./ticker":78,"./utils":79}],32:[function(require,module,exports){
+},{"./const":26,"./display/Container":27,"./display/DisplayObject":28,"./graphics/Graphics":29,"./graphics/GraphicsData":30,"./graphics/gCircle":31,"./graphics/gEllipse":32,"./graphics/gLine":33,"./graphics/gRect":34,"./graphics/gRoundedRect":35,"./graphics/webgl/GraphicsRenderer":36,"./math":42,"./particles/ParticleContainer":48,"./particles/webgl/ParticleRenderer":50,"./renderers/canvas/CanvasRenderer":53,"./renderers/canvas/utils/CanvasBuffer":54,"./renderers/canvas/utils/CanvasGraphics":55,"./renderers/webgl/WebGLRenderer":58,"./renderers/webgl/filters/AbstractFilter":59,"./renderers/webgl/filters/FXAAFilter":60,"./renderers/webgl/filters/SpriteMaskFilter":61,"./renderers/webgl/managers/ShaderManager":65,"./renderers/webgl/shaders/Shader":70,"./renderers/webgl/utils/ObjectRenderer":72,"./renderers/webgl/utils/RenderTarget":74,"./sprites/Image":76,"./sprites/Sprite":77,"./sprites/webgl/SpriteRenderer":78,"./text/Text":79,"./textures/BaseTexture":80,"./textures/RenderTexture":81,"./textures/Texture":82,"./textures/TextureUvs":83,"./textures/VideoBaseTexture":84,"./ticker":86,"./utils":87}],40:[function(require,module,exports){
 var Point = require('./Point');
 
 /**
@@ -9770,7 +11936,7 @@ Matrix.IDENTITY = new Matrix();
  */
 Matrix.TEMP_MATRIX = new Matrix();
 
-},{"./Point":33}],33:[function(require,module,exports){
+},{"./Point":41}],41:[function(require,module,exports){
 /**
  * The Point object represents a location in a two-dimensional coordinate system, where x represents
  * the horizontal axis and y represents the vertical axis.
@@ -9840,7 +12006,7 @@ Point.prototype.set = function (x, y)
     this.y = y || ( (y !== 0) ? this.x : 0 ) ;
 };
 
-},{}],34:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 /**
  * Math classes and utilities mixed into PIXI namespace.
  *
@@ -9862,7 +12028,7 @@ module.exports = {
     RoundedRectangle: require('./shapes/RoundedRectangle')
 };
 
-},{"./Matrix":32,"./Point":33,"./shapes/Circle":35,"./shapes/Ellipse":36,"./shapes/Polygon":37,"./shapes/Rectangle":38,"./shapes/RoundedRectangle":39}],35:[function(require,module,exports){
+},{"./Matrix":40,"./Point":41,"./shapes/Circle":43,"./shapes/Ellipse":44,"./shapes/Polygon":45,"./shapes/Rectangle":46,"./shapes/RoundedRectangle":47}],43:[function(require,module,exports){
 var Rectangle = require('./Rectangle'),
     CONST = require('../../const');
 
@@ -9950,7 +12116,7 @@ Circle.prototype.getBounds = function ()
     return new Rectangle(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
 };
 
-},{"../../const":18,"./Rectangle":38}],36:[function(require,module,exports){
+},{"../../const":26,"./Rectangle":46}],44:[function(require,module,exports){
 var Rectangle = require('./Rectangle'),
     CONST = require('../../const');
 
@@ -10045,7 +12211,7 @@ Ellipse.prototype.getBounds = function ()
     return new Rectangle(this.x - this.width, this.y - this.height, this.width, this.height);
 };
 
-},{"../../const":18,"./Rectangle":38}],37:[function(require,module,exports){
+},{"../../const":26,"./Rectangle":46}],45:[function(require,module,exports){
 var Point = require('../Point'),
     CONST = require('../../const');
 
@@ -10147,7 +12313,7 @@ Polygon.prototype.contains = function (x, y)
     return inside;
 };
 
-},{"../../const":18,"../Point":33}],38:[function(require,module,exports){
+},{"../../const":26,"../Point":41}],46:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -10241,7 +12407,7 @@ Rectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":18}],39:[function(require,module,exports){
+},{"../../const":26}],47:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -10333,7 +12499,7 @@ RoundedRectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":18}],40:[function(require,module,exports){
+},{"../../const":26}],48:[function(require,module,exports){
 var Container = require('../display/Container'),
     CONST = require('../const');
 
@@ -10664,7 +12830,7 @@ ParticleContainer.prototype.destroy = function () {
     this._buffers = null;
 };
 
-},{"../const":18,"../display/Container":19}],41:[function(require,module,exports){
+},{"../const":26,"../display/Container":27}],49:[function(require,module,exports){
 
 /**
  * @author Mat Groves
@@ -10877,7 +13043,7 @@ ParticleBuffer.prototype.destroy = function ()
     this.gl.deleteBuffer(this.staticBuffer);
 };
 
-},{}],42:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 var ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     ParticleShader = require('./ParticleShader'),
@@ -11372,7 +13538,7 @@ ParticleRenderer.prototype.destroy = function ()
     this.tempMatrix = null;
 };
 
-},{"../../math":34,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64,"./ParticleBuffer":41,"./ParticleShader":43}],43:[function(require,module,exports){
+},{"../../math":42,"../../renderers/webgl/WebGLRenderer":58,"../../renderers/webgl/utils/ObjectRenderer":72,"./ParticleBuffer":49,"./ParticleShader":51}],51:[function(require,module,exports){
 var TextureShader = require('../../renderers/webgl/shaders/TextureShader');
 
 /**
@@ -11450,7 +13616,7 @@ ParticleShader.prototype.constructor = ParticleShader;
 
 module.exports = ParticleShader;
 
-},{"../../renderers/webgl/shaders/TextureShader":63}],44:[function(require,module,exports){
+},{"../../renderers/webgl/shaders/TextureShader":71}],52:[function(require,module,exports){
 var utils = require('../utils'),
     math = require('../math'),
     CONST = require('../const'),
@@ -11692,7 +13858,7 @@ SystemRenderer.prototype.destroy = function (removeView) {
     this._backgroundColorString = null;
 };
 
-},{"../const":18,"../math":34,"../utils":79,"eventemitter3":9}],45:[function(require,module,exports){
+},{"../const":26,"../math":42,"../utils":87,"eventemitter3":9}],53:[function(require,module,exports){
 var SystemRenderer = require('../SystemRenderer'),
     CanvasMaskManager = require('./utils/CanvasMaskManager'),
     utils = require('../../utils'),
@@ -11977,7 +14143,7 @@ CanvasRenderer.prototype._mapBlendModes = function ()
     }
 };
 
-},{"../../const":18,"../../math":34,"../../utils":79,"../SystemRenderer":44,"./utils/CanvasMaskManager":48}],46:[function(require,module,exports){
+},{"../../const":26,"../../math":42,"../../utils":87,"../SystemRenderer":52,"./utils/CanvasMaskManager":56}],54:[function(require,module,exports){
 /**
  * Creates a Canvas element of the given size.
  *
@@ -12077,7 +14243,7 @@ CanvasBuffer.prototype.destroy = function ()
     this.canvas = null;
 };
 
-},{}],47:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 var CONST = require('../../../const');
 
 /**
@@ -12430,7 +14596,7 @@ CanvasGraphics.updateGraphicsTint = function (graphics)
 };
 
 
-},{"../../../const":18}],48:[function(require,module,exports){
+},{"../../../const":26}],56:[function(require,module,exports){
 var CanvasGraphics = require('./CanvasGraphics');
 
 /**
@@ -12492,7 +14658,7 @@ CanvasMaskManager.prototype.popMask = function (renderer)
 
 CanvasMaskManager.prototype.destroy = function () {};
 
-},{"./CanvasGraphics":47}],49:[function(require,module,exports){
+},{"./CanvasGraphics":55}],57:[function(require,module,exports){
 var utils = require('../../../utils');
 
 /**
@@ -12726,7 +14892,7 @@ CanvasTinter.canUseMultiply = utils.canUseNewCanvasBlendModes();
  */
 CanvasTinter.tintMethod = CanvasTinter.canUseMultiply ? CanvasTinter.tintWithMultiply :  CanvasTinter.tintWithPerPixel;
 
-},{"../../../utils":79}],50:[function(require,module,exports){
+},{"../../../utils":87}],58:[function(require,module,exports){
 var SystemRenderer = require('../SystemRenderer'),
     ShaderManager = require('./managers/ShaderManager'),
     MaskManager = require('./managers/MaskManager'),
@@ -13271,7 +15437,7 @@ WebGLRenderer.prototype._mapGlModes = function ()
     }
 };
 
-},{"../../const":18,"../../utils":79,"../SystemRenderer":44,"./filters/FXAAFilter":52,"./managers/BlendModeManager":54,"./managers/FilterManager":55,"./managers/MaskManager":56,"./managers/ShaderManager":57,"./managers/StencilManager":58,"./utils/ObjectRenderer":64,"./utils/RenderTarget":66}],51:[function(require,module,exports){
+},{"../../const":26,"../../utils":87,"../SystemRenderer":52,"./filters/FXAAFilter":60,"./managers/BlendModeManager":62,"./managers/FilterManager":63,"./managers/MaskManager":64,"./managers/ShaderManager":65,"./managers/StencilManager":66,"./utils/ObjectRenderer":72,"./utils/RenderTarget":74}],59:[function(require,module,exports){
 var DefaultShader = require('../shaders/TextureShader');
 
 /**
@@ -13389,7 +15555,7 @@ AbstractFilter.prototype.apply = function (frameBuffer)
 };
 */
 
-},{"../shaders/TextureShader":63}],52:[function(require,module,exports){
+},{"../shaders/TextureShader":71}],60:[function(require,module,exports){
 var AbstractFilter = require('./AbstractFilter');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -13437,7 +15603,7 @@ FXAAFilter.prototype.applyFilter = function (renderer, input, output)
     filterManager.applyFilter(shader, input, output);
 };
 
-},{"./AbstractFilter":51}],53:[function(require,module,exports){
+},{"./AbstractFilter":59}],61:[function(require,module,exports){
 var AbstractFilter = require('./AbstractFilter'),
     math =  require('../../../math');
 
@@ -13534,7 +15700,7 @@ Object.defineProperties(SpriteMaskFilter.prototype, {
     }
 });
 
-},{"../../../math":34,"./AbstractFilter":51}],54:[function(require,module,exports){
+},{"../../../math":42,"./AbstractFilter":59}],62:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager');
 
 /**
@@ -13577,7 +15743,7 @@ BlendModeManager.prototype.setBlendMode = function (blendMode)
     return true;
 };
 
-},{"./WebGLManager":59}],55:[function(require,module,exports){
+},{"./WebGLManager":67}],63:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     RenderTarget = require('../utils/RenderTarget'),
     CONST = require('../../../const'),
@@ -14013,7 +16179,7 @@ FilterManager.prototype.destroy = function ()
     this.texturePool = null;
 };
 
-},{"../../../const":18,"../../../math":34,"../utils/Quad":65,"../utils/RenderTarget":66,"./WebGLManager":59}],56:[function(require,module,exports){
+},{"../../../const":26,"../../../math":42,"../utils/Quad":73,"../utils/RenderTarget":74,"./WebGLManager":67}],64:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     AlphaMaskFilter = require('../filters/SpriteMaskFilter');
 
@@ -14127,7 +16293,7 @@ MaskManager.prototype.popStencilMask = function (target, maskData)
 };
 
 
-},{"../filters/SpriteMaskFilter":53,"./WebGLManager":59}],57:[function(require,module,exports){
+},{"../filters/SpriteMaskFilter":61,"./WebGLManager":67}],65:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     TextureShader = require('../shaders/TextureShader'),
     ComplexPrimitiveShader = require('../shaders/ComplexPrimitiveShader'),
@@ -14294,7 +16460,7 @@ ShaderManager.prototype.destroy = function ()
     this.tempAttribState = null;
 };
 
-},{"../../../utils":79,"../shaders/ComplexPrimitiveShader":60,"../shaders/PrimitiveShader":61,"../shaders/TextureShader":63,"./WebGLManager":59}],58:[function(require,module,exports){
+},{"../../../utils":87,"../shaders/ComplexPrimitiveShader":68,"../shaders/PrimitiveShader":69,"../shaders/TextureShader":71,"./WebGLManager":67}],66:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     utils = require('../../../utils');
 
@@ -14638,7 +16804,7 @@ WebGLMaskManager.prototype.popMask = function (maskData)
 };
 
 
-},{"../../../utils":79,"./WebGLManager":59}],59:[function(require,module,exports){
+},{"../../../utils":87,"./WebGLManager":67}],67:[function(require,module,exports){
 /**
  * @class
  * @memberof PIXI
@@ -14679,7 +16845,7 @@ WebGLManager.prototype.destroy = function ()
     this.renderer = null;
 };
 
-},{}],60:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -14739,7 +16905,7 @@ ComplexPrimitiveShader.prototype = Object.create(Shader.prototype);
 ComplexPrimitiveShader.prototype.constructor = ComplexPrimitiveShader;
 module.exports = ComplexPrimitiveShader;
 
-},{"./Shader":62}],61:[function(require,module,exports){
+},{"./Shader":70}],69:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -14800,7 +16966,7 @@ PrimitiveShader.prototype = Object.create(Shader.prototype);
 PrimitiveShader.prototype.constructor = PrimitiveShader;
 module.exports = PrimitiveShader;
 
-},{"./Shader":62}],62:[function(require,module,exports){
+},{"./Shader":70}],70:[function(require,module,exports){
 /*global console */
 var utils = require('../../../utils');
 
@@ -15358,7 +17524,7 @@ Shader.prototype._glCompile = function (type, src)
     return shader;
 };
 
-},{"../../../utils":79}],63:[function(require,module,exports){
+},{"../../../utils":87}],71:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -15455,7 +17621,7 @@ TextureShader.defaultFragmentSrc = [
     '}'
 ].join('\n');
 
-},{"./Shader":62}],64:[function(require,module,exports){
+},{"./Shader":70}],72:[function(require,module,exports){
 var WebGLManager = require('../managers/WebGLManager');
 
 /**
@@ -15512,7 +17678,7 @@ ObjectRenderer.prototype.render = function (object) // jshint unused:false
     // render the object
 };
 
-},{"../managers/WebGLManager":59}],65:[function(require,module,exports){
+},{"../managers/WebGLManager":67}],73:[function(require,module,exports){
 /**
  * Helper class to create a quad
  * @class
@@ -15658,7 +17824,7 @@ module.exports = Quad;
 
 
 
-},{}],66:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 var math = require('../../../math'),
     utils = require('../../../utils'),
     CONST = require('../../../const'),
@@ -15964,7 +18130,7 @@ RenderTarget.prototype.destroy = function()
     this.texture = null;
 };
 
-},{"../../../const":18,"../../../math":34,"../../../utils":79,"./StencilMaskStack":67}],67:[function(require,module,exports){
+},{"../../../const":26,"../../../math":42,"../../../utils":87,"./StencilMaskStack":75}],75:[function(require,module,exports){
 /**
  * Generic Mask Stack data structure
  * @class
@@ -15998,7 +18164,7 @@ function StencilMaskStack()
 StencilMaskStack.prototype.constructor = StencilMaskStack;
 module.exports = StencilMaskStack;
 
-},{}],68:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 var math = require('../math'),
     Texture = require('../textures/Texture'),
     BaseTexture = require('../textures/BaseTexture'),
@@ -16575,7 +18741,7 @@ Image_.prototype.destroy = function (destroyTexture, destroyBaseTexture)
     this.shader = null;
 };
 
-},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/BaseTexture":72,"../textures/Texture":74,"../utils":79}],69:[function(require,module,exports){
+},{"../const":26,"../display/Container":27,"../math":42,"../renderers/canvas/utils/CanvasTinter":57,"../textures/BaseTexture":80,"../textures/Texture":82,"../utils":87}],77:[function(require,module,exports){
 var math = require('../math'),
     Texture = require('../textures/Texture'),
     Container = require('../display/Container'),
@@ -17139,7 +19305,7 @@ Sprite.fromImage = function (imageId, crossorigin, scaleMode)
     return new Sprite(Texture.fromImage(imageId, crossorigin, scaleMode));
 };
 
-},{"../const":18,"../display/Container":19,"../math":34,"../renderers/canvas/utils/CanvasTinter":49,"../textures/Texture":74,"../utils":79}],70:[function(require,module,exports){
+},{"../const":26,"../display/Container":27,"../math":42,"../renderers/canvas/utils/CanvasTinter":57,"../textures/Texture":82,"../utils":87}],78:[function(require,module,exports){
 var ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     CONST = require('../../const');
@@ -17607,7 +19773,7 @@ SpriteRenderer.prototype.destroy = function ()
     this.shader = null;
 };
 
-},{"../../const":18,"../../renderers/webgl/WebGLRenderer":50,"../../renderers/webgl/utils/ObjectRenderer":64}],71:[function(require,module,exports){
+},{"../../const":26,"../../renderers/webgl/WebGLRenderer":58,"../../renderers/webgl/utils/ObjectRenderer":72}],79:[function(require,module,exports){
 var Sprite = require('../sprites/Sprite'),
     Texture = require('../textures/Texture'),
     math = require('../math'),
@@ -18220,7 +20386,7 @@ Text.prototype.destroy = function (destroyBaseTexture)
     this._texture.destroy(destroyBaseTexture === undefined ? true : destroyBaseTexture);
 };
 
-},{"../const":18,"../math":34,"../sprites/Sprite":69,"../textures/Texture":74,"../utils":79}],72:[function(require,module,exports){
+},{"../const":26,"../math":42,"../sprites/Sprite":77,"../textures/Texture":82,"../utils":87}],80:[function(require,module,exports){
 var utils = require('../utils'),
     CONST = require('../const'),
     EventEmitter = require('eventemitter3');
@@ -18653,7 +20819,7 @@ BaseTexture.fromCanvas = function (canvas, scaleMode)
     return baseTexture;
 };
 
-},{"../const":18,"../utils":79,"eventemitter3":9}],73:[function(require,module,exports){
+},{"../const":26,"../utils":87,"eventemitter3":9}],81:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     Texture = require('./Texture'),
     RenderTarget = require('../renderers/webgl/utils/RenderTarget'),
@@ -19144,7 +21310,7 @@ RenderTexture.prototype.getPixel = function (x, y)
     }
 };
 
-},{"../const":18,"../math":34,"../renderers/canvas/utils/CanvasBuffer":46,"../renderers/webgl/managers/FilterManager":55,"../renderers/webgl/utils/RenderTarget":66,"./BaseTexture":72,"./Texture":74}],74:[function(require,module,exports){
+},{"../const":26,"../math":42,"../renderers/canvas/utils/CanvasBuffer":54,"../renderers/webgl/managers/FilterManager":63,"../renderers/webgl/utils/RenderTarget":74,"./BaseTexture":80,"./Texture":82}],82:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     VideoBaseTexture = require('./VideoBaseTexture'),
     TextureUvs = require('./TextureUvs'),
@@ -19550,7 +21716,7 @@ Texture.removeTextureFromCache = function (id)
 
 Texture.EMPTY = new Texture(new BaseTexture());
 
-},{"../math":34,"../utils":79,"./BaseTexture":72,"./TextureUvs":75,"./VideoBaseTexture":76,"eventemitter3":9}],75:[function(require,module,exports){
+},{"../math":42,"../utils":87,"./BaseTexture":80,"./TextureUvs":83,"./VideoBaseTexture":84,"eventemitter3":9}],83:[function(require,module,exports){
 
 /**
  * A standard object to store the Uvs of a texture
@@ -19618,7 +21784,7 @@ TextureUvs.prototype.set = function (frame, baseFrame, rotate)
     }
 };
 
-},{}],76:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     utils = require('../utils');
 
@@ -19851,7 +22017,7 @@ function createSource(path, type)
     return source;
 }
 
-},{"../utils":79,"./BaseTexture":72}],77:[function(require,module,exports){
+},{"../utils":87,"./BaseTexture":80}],85:[function(require,module,exports){
 var CONST = require('../const'),
     EventEmitter = require('eventemitter3'),
     // Internal event used by composed emitter
@@ -20202,7 +22368,7 @@ Ticker.prototype.update = function update(currentTime)
 
 module.exports = Ticker;
 
-},{"../const":18,"eventemitter3":9}],78:[function(require,module,exports){
+},{"../const":26,"eventemitter3":9}],86:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -20264,7 +22430,7 @@ module.exports = {
     Ticker: Ticker
 };
 
-},{"./Ticker":77}],79:[function(require,module,exports){
+},{"./Ticker":85}],87:[function(require,module,exports){
 var CONST = require('../const');
 
 /**
@@ -20527,7 +22693,7 @@ var utils = module.exports = {
     BaseTextureCache: {}
 };
 
-},{"../const":18,"./pluginTarget":80,"async":1}],80:[function(require,module,exports){
+},{"../const":26,"./pluginTarget":88,"async":1}],88:[function(require,module,exports){
 /**
  * Mixins functionality to make an object have "plugins".
  *
@@ -20597,7 +22763,7 @@ module.exports = {
     }
 };
 
-},{}],81:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -20976,7 +23142,7 @@ BitmapText.prototype.validate = function()
 
 BitmapText.fonts = {};
 
-},{"../core":31}],82:[function(require,module,exports){
+},{"../core":39}],90:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -21252,7 +23418,7 @@ MovieClip.fromImages = function (images)
     return new MovieClip(textures);
 };
 
-},{"../core":31}],83:[function(require,module,exports){
+},{"../core":39}],91:[function(require,module,exports){
 var core = require('../core'),
     // a sprite use dfor rendering textures..
     tempPoint = new core.Point();
@@ -21689,7 +23855,7 @@ TilingSprite.fromImage = function (imageId, width, height, crossorigin, scaleMod
     return new TilingSprite(core.Texture.fromImage(imageId, crossorigin, scaleMode),width,height);
 };
 
-},{"../core":31}],84:[function(require,module,exports){
+},{"../core":39}],92:[function(require,module,exports){
 var core = require('../core'),
     DisplayObject = core.DisplayObject,
     _tempMatrix = new core.Matrix();
@@ -21961,7 +24127,7 @@ DisplayObject.prototype._cacheAsBitmapDestroy = function ()
     this._originalDestroy();
 };
 
-},{"../core":31}],85:[function(require,module,exports){
+},{"../core":39}],93:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -21989,7 +24155,7 @@ core.Container.prototype.getChildByName = function (name)
     return null;
 };
 
-},{"../core":31}],86:[function(require,module,exports){
+},{"../core":39}],94:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -22018,7 +24184,7 @@ core.DisplayObject.prototype.getGlobalPosition = function (point)
     return point;
 };
 
-},{"../core":31}],87:[function(require,module,exports){
+},{"../core":39}],95:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -22039,7 +24205,7 @@ module.exports = {
     BitmapText:     require('./BitmapText')
 };
 
-},{"./BitmapText":81,"./MovieClip":82,"./TilingSprite":83,"./cacheAsBitmap":84,"./getChildByName":85,"./getGlobalPosition":86}],88:[function(require,module,exports){
+},{"./BitmapText":89,"./MovieClip":90,"./TilingSprite":91,"./cacheAsBitmap":92,"./getChildByName":93,"./getGlobalPosition":94}],96:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22096,7 +24262,7 @@ Object.defineProperties(AsciiFilter.prototype, {
     }
 });
 
-},{"../../core":31}],89:[function(require,module,exports){
+},{"../../core":39}],97:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYFilter = require('../blur/BlurYFilter');
@@ -22197,7 +24363,7 @@ Object.defineProperties(BloomFilter.prototype, {
     }
 });
 
-},{"../../core":31,"../blur/BlurXFilter":92,"../blur/BlurYFilter":93}],90:[function(require,module,exports){
+},{"../../core":39,"../blur/BlurXFilter":100,"../blur/BlurYFilter":101}],98:[function(require,module,exports){
 var core = require('../../core');
 
 
@@ -22342,7 +24508,7 @@ Object.defineProperties(BlurDirFilter.prototype, {
     }
 });
 
-},{"../../core":31}],91:[function(require,module,exports){
+},{"../../core":39}],99:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('./BlurXFilter'),
     BlurYFilter = require('./BlurYFilter');
@@ -22452,7 +24618,7 @@ Object.defineProperties(BlurFilter.prototype, {
     }
 });
 
-},{"../../core":31,"./BlurXFilter":92,"./BlurYFilter":93}],92:[function(require,module,exports){
+},{"../../core":39,"./BlurXFilter":100,"./BlurYFilter":101}],100:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22546,7 +24712,7 @@ Object.defineProperties(BlurXFilter.prototype, {
     }
 });
 
-},{"../../core":31}],93:[function(require,module,exports){
+},{"../../core":39}],101:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22632,7 +24798,7 @@ Object.defineProperties(BlurYFilter.prototype, {
     }
 });
 
-},{"../../core":31}],94:[function(require,module,exports){
+},{"../../core":39}],102:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -22662,7 +24828,7 @@ SmartBlurFilter.prototype = Object.create(core.AbstractFilter.prototype);
 SmartBlurFilter.prototype.constructor = SmartBlurFilter;
 module.exports = SmartBlurFilter;
 
-},{"../../core":31}],95:[function(require,module,exports){
+},{"../../core":39}],103:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23202,7 +25368,7 @@ Object.defineProperties(ColorMatrixFilter.prototype, {
     }
 });
 
-},{"../../core":31}],96:[function(require,module,exports){
+},{"../../core":39}],104:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23251,7 +25417,7 @@ Object.defineProperties(ColorStepFilter.prototype, {
     }
 });
 
-},{"../../core":31}],97:[function(require,module,exports){
+},{"../../core":39}],105:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23342,7 +25508,7 @@ Object.defineProperties(ConvolutionFilter.prototype, {
     }
 });
 
-},{"../../core":31}],98:[function(require,module,exports){
+},{"../../core":39}],106:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23368,7 +25534,7 @@ CrossHatchFilter.prototype = Object.create(core.AbstractFilter.prototype);
 CrossHatchFilter.prototype.constructor = CrossHatchFilter;
 module.exports = CrossHatchFilter;
 
-},{"../../core":31}],99:[function(require,module,exports){
+},{"../../core":39}],107:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23449,7 +25615,7 @@ Object.defineProperties(DisplacementFilter.prototype, {
     }
 });
 
-},{"../../core":31}],100:[function(require,module,exports){
+},{"../../core":39}],108:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23521,7 +25687,7 @@ Object.defineProperties(DotScreenFilter.prototype, {
     }
 });
 
-},{"../../core":31}],101:[function(require,module,exports){
+},{"../../core":39}],109:[function(require,module,exports){
 var core = require('../../core');
 
 // @see https://github.com/substack/brfs/issues/25
@@ -23612,7 +25778,7 @@ Object.defineProperties(BlurYTintFilter.prototype, {
     }
 });
 
-},{"../../core":31}],102:[function(require,module,exports){
+},{"../../core":39}],110:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYTintFilter = require('./BlurYTintFilter');
@@ -23781,7 +25947,7 @@ Object.defineProperties(DropShadowFilter.prototype, {
     }
 });
 
-},{"../../core":31,"../blur/BlurXFilter":92,"./BlurYTintFilter":101}],103:[function(require,module,exports){
+},{"../../core":39,"../blur/BlurXFilter":100,"./BlurYTintFilter":109}],111:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23830,7 +25996,7 @@ Object.defineProperties(GrayFilter.prototype, {
     }
 });
 
-},{"../../core":31}],104:[function(require,module,exports){
+},{"../../core":39}],112:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI filters library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -23870,7 +26036,7 @@ module.exports = {
     TwistFilter:        require('./twist/TwistFilter')
 };
 
-},{"./ascii/AsciiFilter":88,"./bloom/BloomFilter":89,"./blur/BlurDirFilter":90,"./blur/BlurFilter":91,"./blur/BlurXFilter":92,"./blur/BlurYFilter":93,"./blur/SmartBlurFilter":94,"./color/ColorMatrixFilter":95,"./color/ColorStepFilter":96,"./convolution/ConvolutionFilter":97,"./crosshatch/CrossHatchFilter":98,"./displacement/DisplacementFilter":99,"./dot/DotScreenFilter":100,"./dropshadow/DropShadowFilter":102,"./gray/GrayFilter":103,"./invert/InvertFilter":105,"./noise/NoiseFilter":106,"./normal/NormalMapFilter":107,"./pixelate/PixelateFilter":108,"./rgb/RGBSplitFilter":109,"./sepia/SepiaFilter":110,"./shockwave/ShockwaveFilter":111,"./tiltshift/TiltShiftFilter":113,"./tiltshift/TiltShiftXFilter":114,"./tiltshift/TiltShiftYFilter":115,"./twist/TwistFilter":116}],105:[function(require,module,exports){
+},{"./ascii/AsciiFilter":96,"./bloom/BloomFilter":97,"./blur/BlurDirFilter":98,"./blur/BlurFilter":99,"./blur/BlurXFilter":100,"./blur/BlurYFilter":101,"./blur/SmartBlurFilter":102,"./color/ColorMatrixFilter":103,"./color/ColorStepFilter":104,"./convolution/ConvolutionFilter":105,"./crosshatch/CrossHatchFilter":106,"./displacement/DisplacementFilter":107,"./dot/DotScreenFilter":108,"./dropshadow/DropShadowFilter":110,"./gray/GrayFilter":111,"./invert/InvertFilter":113,"./noise/NoiseFilter":114,"./normal/NormalMapFilter":115,"./pixelate/PixelateFilter":116,"./rgb/RGBSplitFilter":117,"./sepia/SepiaFilter":118,"./shockwave/ShockwaveFilter":119,"./tiltshift/TiltShiftFilter":121,"./tiltshift/TiltShiftXFilter":122,"./tiltshift/TiltShiftYFilter":123,"./twist/TwistFilter":124}],113:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23920,7 +26086,7 @@ Object.defineProperties(InvertFilter.prototype, {
     }
 });
 
-},{"../../core":31}],106:[function(require,module,exports){
+},{"../../core":39}],114:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -23975,7 +26141,7 @@ Object.defineProperties(NoiseFilter.prototype, {
     }
 });
 
-},{"../../core":31}],107:[function(require,module,exports){
+},{"../../core":39}],115:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24088,7 +26254,7 @@ Object.defineProperties(NormalMapFilter.prototype, {
     }
 });
 
-},{"../../core":31}],108:[function(require,module,exports){
+},{"../../core":39}],116:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24139,7 +26305,7 @@ Object.defineProperties(PixelateFilter.prototype, {
     }
 });
 
-},{"../../core":31}],109:[function(require,module,exports){
+},{"../../core":39}],117:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24225,7 +26391,7 @@ Object.defineProperties(RGBSplitFilter.prototype, {
     }
 });
 
-},{"../../core":31}],110:[function(require,module,exports){
+},{"../../core":39}],118:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24275,7 +26441,7 @@ Object.defineProperties(SepiaFilter.prototype, {
     }
 });
 
-},{"../../core":31}],111:[function(require,module,exports){
+},{"../../core":39}],119:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24363,7 +26529,7 @@ Object.defineProperties(ShockwaveFilter.prototype, {
     }
 });
 
-},{"../../core":31}],112:[function(require,module,exports){
+},{"../../core":39}],120:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24488,7 +26654,7 @@ Object.defineProperties(TiltShiftAxisFilter.prototype, {
     }
 });
 
-},{"../../core":31}],113:[function(require,module,exports){
+},{"../../core":39}],121:[function(require,module,exports){
 var core = require('../../core'),
     TiltShiftXFilter = require('./TiltShiftXFilter'),
     TiltShiftYFilter = require('./TiltShiftYFilter');
@@ -24598,7 +26764,7 @@ Object.defineProperties(TiltShiftFilter.prototype, {
     }
 });
 
-},{"../../core":31,"./TiltShiftXFilter":114,"./TiltShiftYFilter":115}],114:[function(require,module,exports){
+},{"../../core":39,"./TiltShiftXFilter":122,"./TiltShiftYFilter":123}],122:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -24636,7 +26802,7 @@ TiltShiftXFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dy / d;
 };
 
-},{"./TiltShiftAxisFilter":112}],115:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":120}],123:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -24674,7 +26840,7 @@ TiltShiftYFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dx / d;
 };
 
-},{"./TiltShiftAxisFilter":112}],116:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":120}],124:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -24759,1013 +26925,46 @@ Object.defineProperties(TwistFilter.prototype, {
     }
 });
 
-},{"../../core":31}],117:[function(require,module,exports){
+},{"../../core":39}],125:[function(require,module,exports){
 (function (global){
-// require('./polyfill');
-
-// global.Q = module.exports = require('./application');
-
-
-
-
 require('./polyfill');
-var core = module.exports = require('./core');
+var core =  require('./core');
 
 core.extras         = require('./extras');
 core.filters        = require('./filters');
-core.interaction    = require('./interaction');
 core.loaders        = require('./loaders');
 core.mesh           = require('./mesh');
-
 core.loader = new core.loaders.Loader();
-
-global.Q = core;
-
+core.app = require('./application');
 
 
+module.exports = 
+global.Q = global.PIXI =
+Object.assign(
+function q(){
+
+    if(arguments.length==0)return null;
+
+    var rt = null, a = arguments[0];
+
+    if(arguments.length==1&& typeof a =='string'){
+        a = arguments[0];
+        // if(a[0]=='.'){
+        //     rt = selector.tagCache[a];
+        // }else if(a[0]=='#'){
+        //     rt = selector.objCache[a];
+        // }else{
+        //     rt = g.selector.getByName(a);
+        // }
+    }else if(arguments.length==2){
+        rt = core.app.factory.factoryObject(a,arguments[1]);
+    }
+
+    return rt;
+},core);
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./core":31,"./extras":87,"./filters":104,"./interaction":120,"./loaders":123,"./mesh":129,"./polyfill":133}],118:[function(require,module,exports){
-var core = require('../core');
-
-/**
- * Holds all information related to an Interaction event
- *
- * @class
- * @memberof PIXI.interaction
- */
-function InteractionData()
-{
-    /**
-     * This point stores the global coords of where the touch/mouse event happened
-     *
-     * @member {Point}
-     */
-    this.global = new core.Point();
-
-    /**
-     * The target Sprite that was interacted with
-     *
-     * @member {Sprite}
-     */
-    this.target = null;
-
-    /**
-     * When passed to an event handler, this will be the original DOM Event that was captured
-     *
-     * @member {Event}
-     */
-    this.originalEvent = null;
-}
-
-InteractionData.prototype.constructor = InteractionData;
-module.exports = InteractionData;
-
-/**
- * This will return the local coordinates of the specified displayObject for this InteractionData
- *
- * @param displayObject {DisplayObject} The DisplayObject that you would like the local coords off
- * @param [point] {Point} A Point object in which to store the value, optional (otherwise will create a new point)
- * param [globalPos] {Point} A Point object containing your custom global coords, optional (otherwise will use the current global coords)
- * @return {Point} A point containing the coordinates of the InteractionData position relative to the DisplayObject
- */
-InteractionData.prototype.getLocalPosition = function (displayObject, point, globalPos)
-{
-    var worldTransform = displayObject.worldTransform;
-    var global = globalPos ? globalPos : this.global;
-
-    // do a cheeky transform to get the mouse coords;
-    var a00 = worldTransform.a, a01 = worldTransform.c, a02 = worldTransform.tx,
-        a10 = worldTransform.b, a11 = worldTransform.d, a12 = worldTransform.ty,
-        id = 1 / (a00 * a11 + a01 * -a10);
-
-    point = point || new core.Point();
-
-    point.x = a11 * id * global.x + -a01 * id * global.x + (a12 * a01 - a02 * a11) * id;
-    point.y = a00 * id * global.y + -a10 * id * global.y + (-a12 * a00 + a02 * a10) * id;
-
-    // set the mouse coords...
-    return point;
-};
-
-},{"../core":31}],119:[function(require,module,exports){
-var core = require('../core'),
-    InteractionData = require('./InteractionData');
-
-// Mix interactiveTarget into core.DisplayObject.prototype
-Object.assign(
-    core.DisplayObject.prototype,
-    require('./interactiveTarget')
-);
-
-/**
- * The interaction manager deals with mouse and touch events. Any DisplayObject can be interactive
- * if its interactive parameter is set to true
- * This manager also supports multitouch.
- *
- * @class
- * @memberof PIXI.interaction
- * @param renderer {CanvasRenderer|WebGLRenderer} A reference to the current renderer
- * @param [options] {object}
- * @param [options.autoPreventDefault=true] {boolean} Should the manager automatically prevent default browser actions.
- * @param [options.interactionFrequency=10] {number} Frequency increases the interaction events will be checked.
- */
-function InteractionManager(renderer, options)
-{
-    options = options || {};
-
-    /**
-     * The renderer this interaction manager works for.
-     *
-     * @member {SystemRenderer}
-     */
-    this.renderer = renderer;
-
-    /**
-     * Should default browser actions automatically be prevented.
-     *
-     * @member {boolean}
-     * @default true
-     */
-    this.autoPreventDefault = options.autoPreventDefault !== undefined ? options.autoPreventDefault : true;
-
-    /**
-     * As this frequency increases the interaction events will be checked more often.
-     *
-     * @member {number}
-     * @default 10
-     */
-    this.interactionFrequency = options.interactionFrequency || 10;
-
-    /**
-     * The mouse data
-     *
-     * @member {InteractionData}
-     */
-    this.mouse = new InteractionData();
-
-    /**
-     * An event data object to handle all the event tracking/dispatching
-     *
-     * @member {EventData}
-     */
-    this.eventData = {
-        stopped: false,
-        target: null,
-        type: null,
-        data: this.mouse,
-        stopPropagation:function(){
-            this.stopped = true;
-        }
-    };
-
-    /**
-     * Tiny little interactiveData pool !
-     *
-     * @member {Array}
-     */
-    this.interactiveDataPool = [];
-
-    /**
-     * The DOM element to bind to.
-     *
-     * @member {HTMLElement}
-     * @private
-     */
-    this.interactionDOMElement = null;
-
-    /**
-     * Have events been attached to the dom element?
-     *
-     * @member {boolean}
-     * @private
-     */
-    this.eventsAdded = false;
-
-    //this will make it so that you don't have to call bind all the time
-
-    /**
-     * @member {Function}
-     */
-    this.onMouseUp = this.onMouseUp.bind(this);
-    this.processMouseUp = this.processMouseUp.bind( this );
-
-
-    /**
-     * @member {Function}
-     */
-    this.onMouseDown = this.onMouseDown.bind(this);
-    this.processMouseDown = this.processMouseDown.bind( this );
-
-    /**
-     * @member {Function}
-     */
-    this.onMouseMove = this.onMouseMove.bind( this );
-    this.processMouseMove = this.processMouseMove.bind( this );
-
-    /**
-     * @member {Function}
-     */
-    this.onMouseOut = this.onMouseOut.bind(this);
-    this.processMouseOverOut = this.processMouseOverOut.bind( this );
-
-
-    /**
-     * @member {Function}
-     */
-    this.onTouchStart = this.onTouchStart.bind(this);
-    this.processTouchStart = this.processTouchStart.bind(this);
-
-    /**
-     * @member {Function}
-     */
-    this.onTouchEnd = this.onTouchEnd.bind(this);
-    this.processTouchEnd = this.processTouchEnd.bind(this);
-
-    /**
-     * @member {Function}
-     */
-    this.onTouchMove = this.onTouchMove.bind(this);
-    this.processTouchMove = this.processTouchMove.bind(this);
-
-    /**
-     * @member {number}
-     */
-    this.last = 0;
-
-    /**
-     * The css style of the cursor that is being used
-     * @member {string}
-     */
-    this.currentCursorStyle = 'inherit';
-
-    /**
-     * Internal cached var
-     * @member {Point}
-     * @private
-     */
-    this._tempPoint = new core.Point();
-
-    /**
-     * The current resolution
-     * @member {number}
-     */
-    this.resolution = 1;
-
-    this.setTargetElement(this.renderer.view, this.renderer.resolution);
-}
-
-InteractionManager.prototype.constructor = InteractionManager;
-module.exports = InteractionManager;
-
-/**
- * Sets the DOM element which will receive mouse/touch events. This is useful for when you have
- * other DOM elements on top of the renderers Canvas element. With this you'll be bale to deletegate
- * another DOM element to receive those events.
- *
- * @param element {HTMLElement} the DOM element which will receive mouse and touch events.
- * @param [resolution=1] {number} THe resolution of the new element (relative to the canvas).
- * @private
- */
-InteractionManager.prototype.setTargetElement = function (element, resolution)
-{
-    this.removeEvents();
-
-    this.interactionDOMElement = element;
-
-    this.resolution = resolution || 1;
-
-    this.addEvents();
-};
-
-/**
- * Registers all the DOM events
- * @private
- */
-InteractionManager.prototype.addEvents = function ()
-{
-    if (!this.interactionDOMElement)
-    {
-        return;
-    }
-
-    core.ticker.shared.add(this.update, this);
-
-    if (window.navigator.msPointerEnabled)
-    {
-        this.interactionDOMElement.style['-ms-content-zooming'] = 'none';
-        this.interactionDOMElement.style['-ms-touch-action'] = 'none';
-    }
-
-    window.document.addEventListener('mousemove',    this.onMouseMove, true);
-    this.interactionDOMElement.addEventListener('mousedown',    this.onMouseDown, true);
-    this.interactionDOMElement.addEventListener('mouseout',     this.onMouseOut, true);
-
-    this.interactionDOMElement.addEventListener('touchstart',   this.onTouchStart, true);
-    this.interactionDOMElement.addEventListener('touchend',     this.onTouchEnd, true);
-    this.interactionDOMElement.addEventListener('touchmove',    this.onTouchMove, true);
-
-    window.addEventListener('mouseup',  this.onMouseUp, true);
-
-    this.eventsAdded = true;
-};
-
-/**
- * Removes all the DOM events that were previously registered
- * @private
- */
-InteractionManager.prototype.removeEvents = function ()
-{
-    if (!this.interactionDOMElement)
-    {
-        return;
-    }
-
-    core.ticker.shared.remove(this.update);
-
-    if (window.navigator.msPointerEnabled)
-    {
-        this.interactionDOMElement.style['-ms-content-zooming'] = '';
-        this.interactionDOMElement.style['-ms-touch-action'] = '';
-    }
-
-    window.document.removeEventListener('mousemove', this.onMouseMove, true);
-    this.interactionDOMElement.removeEventListener('mousedown', this.onMouseDown, true);
-    this.interactionDOMElement.removeEventListener('mouseout',  this.onMouseOut, true);
-
-    this.interactionDOMElement.removeEventListener('touchstart', this.onTouchStart, true);
-    this.interactionDOMElement.removeEventListener('touchend',  this.onTouchEnd, true);
-    this.interactionDOMElement.removeEventListener('touchmove', this.onTouchMove, true);
-
-    this.interactionDOMElement = null;
-
-    window.removeEventListener('mouseup',  this.onMouseUp, true);
-
-    this.eventsAdded = false;
-};
-
-/**
- * Updates the state of interactive objects.
- * Invoked by a throttled ticker update from
- * {@link PIXI.ticker.shared}.
- *
- * @param deltaTime {number}
- */
-InteractionManager.prototype.update = function (deltaTime)
-{
-    this._deltaTime += deltaTime;
-
-    if (this._deltaTime < this.interactionFrequency)
-    {
-        return;
-    }
-
-    this._deltaTime = 0;
-
-    if (!this.interactionDOMElement)
-    {
-        return;
-    }
-
-    // if the user move the mouse this check has already been dfone using the mouse move!
-    if(this.didMove)
-    {
-        this.didMove = false;
-        return;
-    }
-
-    this.cursor = 'inherit';
-
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, true );
-
-    if (this.currentCursorStyle !== this.cursor)
-    {
-        this.currentCursorStyle = this.cursor;
-        this.interactionDOMElement.style.cursor = this.cursor;
-    }
-
-    //TODO
-};
-
-/**
- * Dispatches an event on the display object that was interacted with
- * @param displayObject {Container|Sprite|TilingSprite} the display object in question
- * @param eventString {string} the name of the event (e.g, mousedown)
- * @param eventData {EventData} the event data object
- * @private
- */
-InteractionManager.prototype.dispatchEvent = function ( displayObject, eventString, eventData )
-{
-    if(!eventData.stopped)
-    {
-        eventData.target = displayObject;
-        eventData.type = eventString;
-
-        displayObject.emit( eventString, eventData );
-
-        if( displayObject[eventString] )
-        {
-            displayObject[eventString]( eventData );
-        }
-    }
-};
-
-/**
- * Maps x and y coords from a DOM object and maps them correctly to the pixi view. The resulting value is stored in the point.
- * This takes into account the fact that the DOM element could be scaled and positioned anywhere on the screen.
- *
- * @param  {Point} point the point that the result will be stored in
- * @param  {number} x     the x coord of the position to map
- * @param  {number} y     the y coord of the position to map
- */
-InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
-{
-    var rect = this.interactionDOMElement.getBoundingClientRect();
-    point.x = ( ( x - rect.left ) * (this.interactionDOMElement.width  / rect.width  ) ) / this.resolution;
-    point.y = ( ( y - rect.top  ) * (this.interactionDOMElement.height / rect.height ) ) / this.resolution;
-};
-
-/**
- * This function is provides a neat way of crawling through the scene graph and running a specified function on all interactive objects it finds.
- * It will also take care of hit testing the interactive objects and passes the hit across in the function.
- *
- * @param  {Point} point the point that is tested for collision
- * @param  {Container|Sprite|TilingSprite} displayObject the displayObject that will be hit test (recurcsivly crawls its children)
- * @param  {function} func the function that will be called on each interactive object. The displayObject and hit will be passed to the function
- * @param  {boolean} hitTest this indicates if the objects inside should be hit test against the point
- * @return {boolean} returns true if the displayObject hit the point
- */
-InteractionManager.prototype.processInteractive = function (point, displayObject, func, hitTest, interactive )
-{
-    if(!displayObject.visible)
-    {
-        return false;
-    }
-
-    var children = displayObject.children;
-
-    var hit = false;
-
-    // if the object is interactive we must hit test all its children..
-    interactive = interactive || displayObject.interactive;
-
-    if(displayObject.interactiveChildren)
-    {
-
-        for (var i = children.length-1; i >= 0; i--)
-        {
-            if(! hit  && hitTest)
-            {
-                hit = this.processInteractive(point, children[i], func, true, interactive );
-            }
-            else
-            {
-                // now we know we can miss it all!
-                this.processInteractive(point, children[i], func, false, false );
-            }
-        }
-
-    }
-
-    if(interactive)
-    {
-        if(hitTest)
-        {
-            if(displayObject.hitArea)
-            {
-                // lets use the hit object first!
-                displayObject.worldTransform.applyInverse(point,  this._tempPoint);
-                hit = displayObject.hitArea.contains( this._tempPoint.x, this._tempPoint.y );
-            }
-            else if(displayObject.containsPoint)
-            {
-                hit = displayObject.containsPoint(point);
-            }
-        }
-
-        if(displayObject.interactive)
-        {
-            func(displayObject, hit);
-        }
-    }
-
-    return hit;
-};
-
-
-
-
-/**
- * Is called when the mouse button is pressed down on the renderer element
- *
- * @param event {Event} The DOM event of a mouse button being pressed down
- * @private
- */
-InteractionManager.prototype.onMouseDown = function (event)
-{
-    this.mouse.originalEvent = event;
-    this.eventData.data = this.mouse;
-    this.eventData.stopped = false;
-
-    // Update internal mouse reference
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
-
-    if (this.autoPreventDefault)
-    {
-        this.mouse.originalEvent.preventDefault();
-    }
-
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseDown, true );
-};
-
-/**
- * Processes the result of the mouse down check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the dispay object
- * @private
- */
-InteractionManager.prototype.processMouseDown = function ( displayObject, hit )
-{
-    var e = this.mouse.originalEvent;
-
-    var isRightButton = e.button === 2 || e.which === 3;
-
-    if(hit)
-    {
-        displayObject[ isRightButton ? '_isRightDown' : '_isLeftDown' ] = true;
-        this.dispatchEvent( displayObject, isRightButton ? 'rightdown' : 'mousedown', this.eventData );
-    }
-};
-
-
-
-/**
- * Is called when the mouse button is released on the renderer element
- *
- * @param event {Event} The DOM event of a mouse button being released
- * @private
- */
-InteractionManager.prototype.onMouseUp = function (event)
-{
-    this.mouse.originalEvent = event;
-    this.eventData.data = this.mouse;
-    this.eventData.stopped = false;
-
-    // Update internal mouse reference
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
-
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseUp, true );
-};
-
-/**
- * Processes the result of the mouse up check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processMouseUp = function ( displayObject, hit )
-{
-    var e = this.mouse.originalEvent;
-
-    var isRightButton = e.button === 2 || e.which === 3;
-    var isDown =  isRightButton ? '_isRightDown' : '_isLeftDown';
-
-    if(hit)
-    {
-        this.dispatchEvent( displayObject, isRightButton ? 'rightup' : 'mouseup', this.eventData );
-
-        if( displayObject[ isDown ] )
-        {
-            displayObject[ isDown ] = false;
-            this.dispatchEvent( displayObject, isRightButton ? 'rightclick' : 'click', this.eventData );
-        }
-    }
-    else
-    {
-        if( displayObject[ isDown ] )
-        {
-            displayObject[ isDown ] = false;
-            this.dispatchEvent( displayObject, isRightButton ? 'rightupoutside' : 'mouseupoutside', this.eventData );
-        }
-    }
-};
-
-
-/**
- * Is called when the mouse moves across the renderer element
- *
- * @param event {Event} The DOM event of the mouse moving
- * @private
- */
-InteractionManager.prototype.onMouseMove = function (event)
-{
-    this.mouse.originalEvent = event;
-    this.eventData.data = this.mouse;
-    this.eventData.stopped = false;
-
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
-
-    this.didMove = true;
-
-    this.cursor = 'inherit';
-
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseMove, true );
-
-    if (this.currentCursorStyle !== this.cursor)
-    {
-        this.currentCursorStyle = this.cursor;
-        this.interactionDOMElement.style.cursor = this.cursor;
-    }
-
-    //TODO BUG for parents ineractive object (border order issue)
-};
-
-/**
- * Processes the result of the mouse move check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processMouseMove = function ( displayObject, hit )
-{
-    this.dispatchEvent( displayObject, 'mousemove', this.eventData);
-    this.processMouseOverOut(displayObject, hit);
-};
-
-
-/**
- * Is called when the mouse is moved out of the renderer element
- *
- * @param event {Event} The DOM event of a mouse being moved out
- * @private
- */
-InteractionManager.prototype.onMouseOut = function (event)
-{
-    this.mouse.originalEvent = event;
-    this.eventData.stopped = false;
-
-    // Update internal mouse reference
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY);
-
-    this.interactionDOMElement.style.cursor = 'inherit';
-
-    // TODO optimize by not check EVERY TIME! maybe half as often? //
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY );
-
-    this.processInteractive( this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, false );
-};
-
-/**
- * Processes the result of the mouse over/out check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processMouseOverOut = function ( displayObject, hit )
-{
-    if(hit)
-    {
-        if(!displayObject._over)
-        {
-            displayObject._over = true;
-            this.dispatchEvent( displayObject, 'mouseover', this.eventData );
-        }
-
-        if (displayObject.buttonMode)
-        {
-            this.cursor = displayObject.defaultCursor;
-        }
-    }
-    else
-    {
-        if(displayObject._over)
-        {
-            displayObject._over = false;
-            this.dispatchEvent( displayObject, 'mouseout', this.eventData);
-        }
-    }
-};
-
-
-/**
- * Is called when a touch is started on the renderer element
- *
- * @param event {Event} The DOM event of a touch starting on the renderer view
- * @private
- */
-InteractionManager.prototype.onTouchStart = function (event)
-{
-    if (this.autoPreventDefault)
-    {
-        event.preventDefault();
-    }
-
-    var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length;
-
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
-        //TODO POOL
-        var touchData = this.getTouchData( touchEvent );
-
-        touchData.originalEvent = event;
-
-        this.eventData.data = touchData;
-        this.eventData.stopped = false;
-
-        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchStart, true );
-
-        this.returnTouchData( touchData );
-    }
-};
-
-/**
- * Processes the result of a touch check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processTouchStart = function ( displayObject, hit )
-{
-    //console.log("hit" + hit)
-    if(hit)
-    {
-        displayObject._touchDown = true;
-        this.dispatchEvent( displayObject, 'touchstart', this.eventData );
-    }
-};
-
-
-/**
- * Is called when a touch ends on the renderer element
- * @param event {Event} The DOM event of a touch ending on the renderer view
- *
- */
-InteractionManager.prototype.onTouchEnd = function (event)
-{
-    if (this.autoPreventDefault)
-    {
-        event.preventDefault();
-    }
-
-    var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length;
-
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
-
-        var touchData = this.getTouchData( touchEvent );
-
-        touchData.originalEvent = event;
-
-        //TODO this should be passed along.. no set
-        this.eventData.data = touchData;
-        this.eventData.stopped = false;
-
-
-        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchEnd, true );
-
-        this.returnTouchData( touchData );
-    }
-};
-
-/**
- * Processes the result of the end of a touch and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processTouchEnd = function ( displayObject, hit )
-{
-    if(hit)
-    {
-        this.dispatchEvent( displayObject, 'touchend', this.eventData );
-
-        if( displayObject._touchDown )
-        {
-            displayObject._touchDown = false;
-            this.dispatchEvent( displayObject, 'tap', this.eventData );
-        }
-    }
-    else
-    {
-        if( displayObject._touchDown )
-        {
-            displayObject._touchDown = false;
-            this.dispatchEvent( displayObject, 'touchendoutside', this.eventData );
-        }
-    }
-};
-
-/**
- * Is called when a touch is moved across the renderer element
- *
- * @param event {Event} The DOM event of a touch moving across the renderer view
- * @private
- */
-InteractionManager.prototype.onTouchMove = function (event)
-{
-    if (this.autoPreventDefault)
-    {
-        event.preventDefault();
-    }
-
-    var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length;
-
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
-
-        var touchData = this.getTouchData( touchEvent );
-
-        touchData.originalEvent = event;
-
-        this.eventData.data = touchData;
-        this.eventData.stopped = false;
-
-        this.processInteractive( touchData.global, this.renderer._lastObjectRendered, this.processTouchMove, false );
-
-        this.returnTouchData( touchData );
-    }
-};
-
-/**
- * Processes the result of a touch move check and dispatches the event if need be
- *
- * @param displayObject {Container|Sprite|TilingSprite} The display object that was tested
- * @param hit {boolean} the result of the hit test on the display object
- * @private
- */
-InteractionManager.prototype.processTouchMove = function ( displayObject, hit )
-{
-    hit = hit;
-    this.dispatchEvent( displayObject, 'touchmove', this.eventData);
-};
-
-/**
- * Grabs an interaction data object from the internal pool
- *
- * @param touchEvent {EventData} The touch event we need to pair with an interactionData object
- *
- * @private
- */
-InteractionManager.prototype.getTouchData = function (touchEvent)
-{
-    var touchData = this.interactiveDataPool.pop();
-
-    if(!touchData)
-    {
-        touchData = new InteractionData();
-    }
-
-    touchData.identifier = touchEvent.identifier;
-    this.mapPositionToPoint( touchData.global, touchEvent.clientX, touchEvent.clientY );
-
-    if(navigator.isCocoonJS)
-    {
-        touchData.global.x = touchData.global.x / this.resolution;
-        touchData.global.y = touchData.global.y / this.resolution;
-    }
-
-    touchEvent.globalX = touchData.global.x;
-    touchEvent.globalY = touchData.global.y;
-
-    return touchData;
-};
-
-/**
- * Returns an interaction data object to the internal pool
- *
- * @param touchData {InteractionData} The touch data object we want to return to the pool
- *
- * @private
- */
-InteractionManager.prototype.returnTouchData = function ( touchData )
-{
-    this.interactiveDataPool.push( touchData );
-};
-
-/**
- * Destroys the interaction manager
- */
-InteractionManager.prototype.destroy = function () {
-    this.removeEvents();
-
-    this.renderer = null;
-
-    this.mouse = null;
-
-    this.eventData = null;
-
-    this.interactiveDataPool = null;
-
-    this.interactionDOMElement = null;
-
-    this.onMouseUp = null;
-    this.processMouseUp = null;
-
-
-    this.onMouseDown = null;
-    this.processMouseDown = null;
-
-    this.onMouseMove = null;
-    this.processMouseMove = null;
-
-    this.onMouseOut = null;
-    this.processMouseOverOut = null;
-
-
-    this.onTouchStart = null;
-    this.processTouchStart = null;
-
-    this.onTouchEnd = null;
-    this.processTouchEnd = null;
-
-    this.onTouchMove = null;
-    this.processTouchMove = null;
-
-    this._tempPoint = null;
-};
-
-core.WebGLRenderer.registerPlugin('interaction', InteractionManager);
-core.CanvasRenderer.registerPlugin('interaction', InteractionManager);
-
-},{"../core":31,"./InteractionData":118,"./interactiveTarget":121}],120:[function(require,module,exports){
-/**
- * @file        Main export of the PIXI interactions library
- * @author      Mat Groves <mat@goodboydigital.com>
- * @copyright   2013-2015 GoodBoyDigital
- * @license     {@link https://github.com/GoodBoyDigital/pixi.js/blob/master/LICENSE|MIT License}
- */
-
-/**
- * @namespace PIXI.interaction
- */
-module.exports = {
-    InteractionData:    require('./InteractionData'),
-    InteractionManager: require('./InteractionManager'),
-    interactiveTarget:  require('./interactiveTarget')
-};
-
-},{"./InteractionData":118,"./InteractionManager":119,"./interactiveTarget":121}],121:[function(require,module,exports){
-/**
- * Default property values of interactive objects
- * used by {@link PIXI.interaction.InteractionManager}.
- *
- * @mixin
- * @memberof PIXI.interaction
- * @example
- *      function MyObject() {}
- *
- *      Object.assign(
- *          MyObject.prototype,
- *          PIXI.interaction.interactiveTarget
- *      );
- */
-var interactiveTarget = {
-    /**
-     * @todo Needs docs.
-     */
-    interactive: false,
-    /**
-     * @todo Needs docs.
-     */
-    buttonMode: false,
-    /**
-     * @todo Needs docs.
-     */
-    interactiveChildren: true,
-    /**
-     * @todo Needs docs.
-     */
-    defaultCursor: 'pointer',
-
-    // some internal checks..
-
-    /**
-     * @todo Needs docs.
-     * @private
-     */
-    _over: false,
-    /**
-     * @todo Needs docs.
-     * @private
-     */
-    _touchDown: false
-};
-
-module.exports = interactiveTarget;
-
-},{}],122:[function(require,module,exports){
+},{"./application":22,"./core":39,"./extras":95,"./filters":112,"./loaders":127,"./mesh":133,"./polyfill":137}],126:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     core = require('../core'),
     extras = require('../extras'),
@@ -25885,7 +27084,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31,"../extras":87,"path":2,"resource-loader":14}],123:[function(require,module,exports){
+},{"../core":39,"../extras":95,"path":2,"resource-loader":14}],127:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI loaders library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -25906,7 +27105,7 @@ module.exports = {
     Resource:           require('resource-loader').Resource
 };
 
-},{"./bitmapFontParser":122,"./loader":124,"./spritesheetParser":125,"./textureParser":126,"resource-loader":14}],124:[function(require,module,exports){
+},{"./bitmapFontParser":126,"./loader":128,"./spritesheetParser":129,"./textureParser":130,"resource-loader":14}],128:[function(require,module,exports){
 var ResourceLoader = require('resource-loader'),
     textureParser = require('./textureParser'),
     spritesheetParser = require('./spritesheetParser'),
@@ -25968,7 +27167,7 @@ var Resource = ResourceLoader.Resource;
 
 Resource.setExtensionXhrType('fnt', Resource.XHR_RESPONSE_TYPE.DOCUMENT);
 
-},{"./bitmapFontParser":122,"./spritesheetParser":125,"./textureParser":126,"resource-loader":14}],125:[function(require,module,exports){
+},{"./bitmapFontParser":126,"./spritesheetParser":129,"./textureParser":130,"resource-loader":14}],129:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     path = require('path'),
     core = require('../core');
@@ -26051,7 +27250,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31,"path":2,"resource-loader":14}],126:[function(require,module,exports){
+},{"../core":39,"path":2,"resource-loader":14}],130:[function(require,module,exports){
 var core = require('../core');
 
 module.exports = function ()
@@ -26070,7 +27269,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":31}],127:[function(require,module,exports){
+},{"../core":39}],131:[function(require,module,exports){
 var core = require('../core'),
     tempPoint = new core.Point(),
     tempPolygon = new core.Polygon();
@@ -26551,7 +27750,7 @@ Mesh.DRAW_MODES = {
     TRIANGLES: 1
 };
 
-},{"../core":31}],128:[function(require,module,exports){
+},{"../core":39}],132:[function(require,module,exports){
 var Mesh = require('./Mesh');
 var core = require('../core');
 
@@ -26764,7 +27963,7 @@ Rope.prototype.updateTransform = function ()
     this.containerUpdateTransform();
 };
 
-},{"../core":31,"./Mesh":127}],129:[function(require,module,exports){
+},{"../core":39,"./Mesh":131}],133:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -26782,7 +27981,7 @@ module.exports = {
     MeshShader:     require('./webgl/MeshShader')
 };
 
-},{"./Mesh":127,"./Rope":128,"./webgl/MeshRenderer":130,"./webgl/MeshShader":131}],130:[function(require,module,exports){
+},{"./Mesh":131,"./Rope":132,"./webgl/MeshRenderer":134,"./webgl/MeshShader":135}],134:[function(require,module,exports){
 var core = require('../../core'),
     Mesh = require('../Mesh');
 
@@ -26996,7 +28195,7 @@ MeshRenderer.prototype.destroy = function ()
 {
 };
 
-},{"../../core":31,"../Mesh":127}],131:[function(require,module,exports){
+},{"../../core":39,"../Mesh":131}],135:[function(require,module,exports){
 var core = require('../../core');
 
 /**
@@ -27057,7 +28256,7 @@ module.exports = StripShader;
 
 core.ShaderManager.registerPlugin('meshShader', StripShader);
 
-},{"../../core":31}],132:[function(require,module,exports){
+},{"../../core":39}],136:[function(require,module,exports){
 // References:
 // https://github.com/sindresorhus/object-assign
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
@@ -27067,11 +28266,11 @@ if (!Object.assign)
     Object.assign = require('object-assign');
 }
 
-},{"object-assign":10}],133:[function(require,module,exports){
+},{"object-assign":10}],137:[function(require,module,exports){
 require('./Object.assign');
 require('./requestAnimationFrame');
 
-},{"./Object.assign":132,"./requestAnimationFrame":134}],134:[function(require,module,exports){
+},{"./Object.assign":136,"./requestAnimationFrame":138}],138:[function(require,module,exports){
 (function (global){
 // References:
 // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
@@ -27142,7 +28341,7 @@ if (!global.cancelAnimationFrame) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}]},{},[117])(117)
+},{}]},{},[125])(125)
 });
 
 

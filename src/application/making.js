@@ -23,28 +23,6 @@ factory.bindClass('Image',core.Image,function(c,ops){
 });
 
 
-function q(){
-
-    if(arguments.length==0)return null;
-
-    var rt = null, a = arguments[0];
-
-    if(arguments.length==1&& typeof a =='string'){
-        a = arguments[0];
-        if(a[0]=='.'){
-            rt = selector.tagCache[a];
-        }else if(a[0]=='#'){
-            rt = selector.objCache[a];
-        }else{
-            rt = g.selector.getByName(a);
-        }
-    }else if(arguments.length==2){
-        rt = factoryObject(a,arguments[1]);
-    }
-
-    return rt;
-}
-
 function qset( ops, isfunc, exc )
 {
     ops = ops||{};

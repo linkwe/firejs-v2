@@ -5,7 +5,6 @@ var app ;
 
 function Application(ops){
 
-
     if(app) return app ;
 
     EventEmitter.call(this);

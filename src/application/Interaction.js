@@ -1,43 +1,5 @@
 var core = require('../core');
 
-// Mix interactiveTarget into core.DisplayObject.prototype
-Object.assign(
-    core.DisplayObject.prototype,
-    {
-        interactive: false,
-        /**
-         * @todo Needs docs.
-         */
-        buttonMode: false,
-        /**
-         * @todo Needs docs.
-         */
-        interactiveChildren: true,
-        /**
-         * @todo Needs docs.
-         */
-        defaultCursor: 'pointer',
-
-        /**
-         * @todo Needs docs.
-         * @private
-         */
-        _over: false,
-        /**
-         * @todo Needs docs.
-         * @private
-         */
-        _touchDown: false,
-
-        /**
-         * @todo Needs docs.
-         * @private
-         */
-        enabled: false
-    }
-);
-
-
 
 function InteractionData()
 {

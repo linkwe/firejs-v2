@@ -22,9 +22,15 @@ PIXI.loader.add([
    
 ]).load(function(a,b){
 
-    var aa = new PIXI.Sprite(b['im1'].texture);
+    var aa = Q('Image',{
+        texture:b['im1'].texture,
+        width:300,
+        height:300,
+        x:100,
+        y:100
+    })
 
-    aa.position.x = 300;
+    console.log(aa);
     stage.addChild(aa);
 
 });
