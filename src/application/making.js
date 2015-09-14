@@ -10,18 +10,9 @@ factory.bindClass('Image',core.Image,function(c,ops){
         resId:ops.resId
     });
     return qset.call(obj,ops,null,['texture','url','resId']);
-});
+},factory.TYPE_FAC);
 
-factory.bindClass('Image',core.Image,function(c,ops){
-    ops = ops||{};
-    var obj = new c({
-        texture:ops.texture,
-        url:ops.url,
-        resId:ops.resId
-    });
-    return qset.call(obj,ops,null,['texture','url','resId']);
-});
-
+factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
 function qset( ops, isfunc, exc )
 {

@@ -1,17 +1,23 @@
 var utils = require('../core').utils;
 
 
-function Controller(){
+function Controller(ops){
+
+    ops = ops || {} ;
 
     this._resf = ops.resf;
+
     this._control = ops.control;
 
     this.resf =null;
+
     this.control = null;
 
-    this.name = ops.name || core.utils.uid();
+    this.name = ops.name || utils.uid();
 
     utils.controller[this.name] = this;
+
+    this._init();
 
 }
 
@@ -19,11 +25,11 @@ Controller.prototype.constructor = Container;
 
 module.exports = Controller;
 
-Controller.prototype._init = function(the){
+Controller.prototype._init = function(){
 
     var _resf = this._resf;
 
-    var control = this._control;
+    var control = this._control,
         obj , i , co;
 
     for(i in _resf){
@@ -36,7 +42,7 @@ Controller.prototype._init = function(the){
         obj = this.resf[i];
         if(!obj)continue;
         for(var o in co){
-            obj.on( o , this.fns[ co[o] ].bind( obj, this) );
+            obj.on( o , this.fns[ co[o] ].bind( obj , this) );
         }
     }
 

@@ -10,91 +10,39 @@
 </body>
 <script src='../bin/pixi.js'></script>
 <script>
-var renderer = PIXI.autoDetectRenderer(innerWidth*2, innerHeight*2,{backgroundColor : 0x1099bb});
-document.body.appendChild(renderer.view);
 
-// create the root of the scene graph
-var stage = new PIXI.Container();
+var a  = Q('App',{
 
-// create a texture from an image path
-var texture = PIXI.Texture.fromImage('res/h_baner.png');
+    resources:[
+        {name:'im1',url:'res/1.jpg'}
+    ],
 
-// create a new Sprite using the texture
-var bunny = new PIXI.Sprite(texture);
+    listeners:{
+        init:function(b,c){
+
+            console.log('init')
+
+            a.container.addChild(Q('Image',{
+                texture:c['im1'].texture,
+                width:300,
+                height:300,
+                x:100,
+                y:100
+            }));
 
 
+        },
+        launch:function(){
 
-var rect = new PIXI.gRoundedRect({
-    width:600,
-    height:500,
-    radius:50,
-    color:0xccbbaa,
-    lineWidth:50,
-    lineColor:0x000000,
-    lineAlpha:1
+            console.log('launch')
+
+        }
+    }
 });
 
-var line = new PIXI.gLine({
+// console.log();
 
-    paths:[{x:50,y:50},{x:300,y:100},{x:100,y:500}],
+// a.container.addChild(Q('Image'))
 
-    lineWidth:50,
-
-    lineColor:0x000000,
-
-    lineAlpha:1
-});
-
-
-line.filling = false;
-
-var bunny1 = Q('Image',{
-    width:200,
-    height:200,
-    texture:texture
-});
-
-
-// center the sprite's anchor point
-bunny.anchor.x = 0.5;
-bunny.anchor.y = 0.5;
-
-// move the sprite to the center of the screen
-bunny.position.x = 200;
-bunny.position.y = 150;
-
-// stage.addChild(bunny);
-// stage.addChild(bunny1);
-
-stage.addChild(rect);
-stage.addChild(line);
-
-
-// start animating
-// animate();
-// 
-
-PIXI.ticker.shared.add(animate,5)
-
-
-function animate(a) {
-
-    // rect.width += 5;
-    // if(rect.width>800)rect.width = 200;
-
-    // rect.y += 5;
-
-    // if( rect.y > 500)rect.y =0;
-    // rect.width += 5;
-
-    // console.log(5)
-    // requestAnimationFrame(animate);
-
-    // just for fun, let's rotate mr rabbit a little
-    // bunny.rotation += 0.1;
-
-    // render the container
-    renderer.render(stage);
-}
 </script>
 </html>

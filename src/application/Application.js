@@ -1,4 +1,5 @@
 var core = require('../core'),
+Loader = require('../loaders').Loader,
 EventEmitter = require('eventemitter3');
 
 var app ;
@@ -11,7 +12,9 @@ function Application(ops){
 
     app = this;
 
-    this.loader = new core.loaders.Loader(); 
+    this.loader = new Loader(); 
+
+    //console.log(this.loader);
 
     this.resolution = ops.resolution || 1 ;
 
@@ -28,14 +31,13 @@ function Application(ops){
         this.element = document.body;
         _w = document.documentElement.clientWidth;
         _h = document.documentElement.clientHeight;
-
     }
 
     this.width  = _w ;//this.resolution * _w ;
     
     this.height = _h ;//this.resolution * _h ;
 
-    this.atyView = new core.View();
+    this.atyView = new core.Container();
 
     this.renderer = core.autoDetectRenderer(this.width,this.height,this.resolution);
 
@@ -53,7 +55,11 @@ function Application(ops){
 
     this.autoRender = true;
 
-    core.ticker.shared.add(this.update, this);
+    if(ops.listeners) this.addlisteners(ops.listeners) ;
+   
+    core.ticker.shared.add( this.update, this);
+
+    core.ticker.shared.start();
 
     this._initApplication(ops);
 
@@ -75,7 +81,7 @@ Application.prototype.loadResources = function(launch,resources){
 
     var me = this,loader = this.loader ;
 
-    loader.one('progress',function(a,b){
+    loader.on('progress',function(a,b){
         me.emit( 'progress', a, b );
     });
 

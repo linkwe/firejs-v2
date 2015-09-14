@@ -6,5 +6,5 @@ module.exports = {
     factory:require('./factory'),
     interaction:require('./Interaction'),
     Application:require('./Application'),
-    requests:require('./requests')
+    req:require('./requests')
 };

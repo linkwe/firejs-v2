@@ -28,7 +28,11 @@ PIXI.loader.add([
         height:300,
         x:100,
         y:100
-    })
+    });
+
+    aa.on('touchstart',function(){
+        console.log(22)
+    });
 
     console.log(aa);
     stage.addChild(aa);

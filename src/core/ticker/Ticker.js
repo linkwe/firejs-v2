@@ -35,10 +35,10 @@ function Ticker()
             // Invoke listeners now
             _this.update(time);
             // Listener side effects may have modified ticker state.
-            if (_this.started && _this._requestId === null && _this._emitter.listeners(TICK, true))
-            {
+            // if (_this.started && _this._requestId === null && _this._emitter.listeners(TICK, true))
+            // {
                 _this._requestId = requestAnimationFrame(_this._tick);
-            }
+            // }
         }
     };
     /**
@@ -292,6 +292,7 @@ Ticker.prototype.start = function start()
 {
     if (!this.started)
     {
+        console.log(33);
         this.started = true;
         this._requestIfNeeded();
     }

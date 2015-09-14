@@ -2928,6 +2928,7 @@ EventEmitter.prototype._events = undefined;
  * @api public
  */
 EventEmitter.prototype.listeners = function listeners(event, exists) {
+
   var evt = prefix ? prefix + event : event
     , available = this._events && this._events[evt];
 
@@ -2940,6 +2941,11 @@ EventEmitter.prototype.listeners = function listeners(event, exists) {
   }
 
   return ee;
+};
+
+EventEmitter.prototype.addlisteners = function listeners(ops) {
+  ops = ops||{};
+  for(var i in ops) this.on(i,ops[i]);
 };
 
 
@@ -4627,6 +4633,7 @@ module.exports={
 
 },{}],18:[function(require,module,exports){
 var core = require('../core'),
+Loader = require('../loaders').Loader,
 EventEmitter = require('eventemitter3');
 
 var app ;
@@ -4639,7 +4646,9 @@ function Application(ops){
 
     app = this;
 
-    this.loader = new core.loaders.Loader(); 
+    this.loader = new Loader(); 
+
+    //console.log(this.loader);
 
     this.resolution = ops.resolution || 1 ;
 
@@ -4656,14 +4665,13 @@ function Application(ops){
         this.element = document.body;
         _w = document.documentElement.clientWidth;
         _h = document.documentElement.clientHeight;
-
     }
 
     this.width  = _w ;//this.resolution * _w ;
     
     this.height = _h ;//this.resolution * _h ;
 
-    this.atyView = new core.View();
+    this.atyView = new core.Container();
 
     this.renderer = core.autoDetectRenderer(this.width,this.height,this.resolution);
 
@@ -4681,7 +4689,11 @@ function Application(ops){
 
     this.autoRender = true;
 
-    core.ticker.shared.add(this.update, this);
+    if(ops.listeners) this.addlisteners(ops.listeners) ;
+   
+    core.ticker.shared.add( this.update, this);
+
+    core.ticker.shared.start();
 
     this._initApplication(ops);
 
@@ -4703,7 +4715,7 @@ Application.prototype.loadResources = function(launch,resources){
 
     var me = this,loader = this.loader ;
 
-    loader.one('progress',function(a,b){
+    loader.on('progress',function(a,b){
         me.emit( 'progress', a, b );
     });
 
@@ -4940,7 +4952,7 @@ var App = _class({
     }
 });
 */
-},{"../core":39,"eventemitter3":9}],19:[function(require,module,exports){
+},{"../core":39,"../loaders":127,"eventemitter3":9}],19:[function(require,module,exports){
 var core = require('../core');
 
 
@@ -5343,15 +5355,8 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
  */
 InteractionManager.prototype.processInteractive = function ( evdate, evname)
 {
-    if(!displayObject.enabled)
-    {
-        return false;
-    }
-
     evdate.type = evname;
-
     this.renderer._lastObjectRendered.interaction(evname,evdate);
-
 };
 
 
@@ -5771,9 +5776,14 @@ module.exports = _require;
 
 },{"../core":39}],21:[function(require,module,exports){
 
-
-
 var __class = {};
+var factory = {
+    __class:__class,
+    bindClass:bindClass,
+    factoryObject:factoryObject,
+    TYPE_FAC:0,
+    TYPE_CON:1
+};
 
 /**
  * [bindClass description]
@@ -5782,7 +5792,7 @@ var __class = {};
  * @param  {[type]} factory 如何价工厂化的实现，默认是将参数做为数组.
  * @return {[type]}         返回一个该类的工厂方法
  */
-function bindClass( name, source, factory ){
+function bindClass( name, source, _factory , type){
     if(__class[name])return false;
     /**
      * 工厂化接口
@@ -5790,25 +5800,39 @@ function bindClass( name, source, factory ){
      * @param  {[type]} ops    实例化的参数
      * @return {[type]}        返回实例化的对象
      */
-    factory = factory || function( _class , ops){
-        var c, b = ops;
-        if(Object.prototype.toString.call(ops)==='[object Array]'){
-            switch(b.length)
-            {
-                case 1 :c = new _class[a](b[0]);break;
-                case 2 :c = new _class[a](b[0],b[1]); break;
-                case 3 :c = new _class[a](b[0],b[1],b[2]); break;
-                case 4 :c = new _class[a](b[0],b[1],b[2],b[3]);break;
-                case 5 :c = new _class[a](b[0],b[1],b[2],b[3],b[4]);break;
-                case 6 :c = new _class[a](b[0],b[1],b[2],b[3],b[4],b[5]);break;
-                default:c = new _class[a]();break;
-            }
-        }else{
-            c = new _class(b);
-        }
-        return c;
+    if( type === factory.TYPE_CON ){
+
+        __class[name] = {
+            factory:source,
+            type:type
+        };
+
+    }else{
+
+        __class[name] = {
+            factory:(_factory || function( _class , ops){
+                var c, b = ops;
+                if(Object.prototype.toString.call(ops)==='[object Array]'){
+                    switch(b.length)
+                    {
+                        case 1 :c = new _class[a](b[0]);break;
+                        case 2 :c = new _class[a](b[0],b[1]); break;
+                        case 3 :c = new _class[a](b[0],b[1],b[2]); break;
+                        case 4 :c = new _class[a](b[0],b[1],b[2],b[3]);break;
+                        case 5 :c = new _class[a](b[0],b[1],b[2],b[3],b[4]);break;
+                        case 6 :c = new _class[a](b[0],b[1],b[2],b[3],b[4],b[5]);break;
+                        default:c = new _class[a]();break;
+                    }
+                }else{
+                    c = new _class(b);
+                }
+                return c;
+            }).bind(null,source),
+            type:type===undefined ? 1 : type
+        };
+
     }
-    __class[name] = factory.bind( null, source );
+   
     return true;
 };
 
@@ -5820,15 +5844,22 @@ function bindClass( name, source, factory ){
  * @return {[type]}      实例化一个对象，并且返回
  */
 function factoryObject( name , ops ){
-    return __class[name] && __class[name](ops) || null;
+
+    if(!__class[name])return;
+
+    if(__class[name].type == factory.TYPE_FAC){
+
+        return __class[name].factory(ops);
+
+    }else if(__class[name].type == factory.TYPE_CON){
+
+        return new __class[name].factory(ops);
+
+    }
 };
 
 
-module.exports = {
-    __class:__class,
-    bindClass:bindClass,
-    factoryObject:factoryObject
-};
+module.exports = factory;
 },{}],22:[function(require,module,exports){
 require('./modify');
 require('./making');
@@ -5838,7 +5869,7 @@ module.exports = {
     factory:require('./factory'),
     interaction:require('./Interaction'),
     Application:require('./Application'),
-    requests:require('./requests')
+    req:require('./requests')
 };
 
 },{"./Application":18,"./Interaction":19,"./_require":20,"./factory":21,"./making":23,"./modify":24,"./requests":25}],23:[function(require,module,exports){
@@ -5854,18 +5885,9 @@ factory.bindClass('Image',core.Image,function(c,ops){
         resId:ops.resId
     });
     return qset.call(obj,ops,null,['texture','url','resId']);
-});
+},factory.TYPE_FAC);
 
-factory.bindClass('Image',core.Image,function(c,ops){
-    ops = ops||{};
-    var obj = new c({
-        texture:ops.texture,
-        url:ops.url,
-        resId:ops.resId
-    });
-    return qset.call(obj,ops,null,['texture','url','resId']);
-});
-
+factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
 function qset( ops, isfunc, exc )
 {
@@ -5890,7 +5912,7 @@ function qset( ops, isfunc, exc )
 
     return this;
 }
-},{"../core":39,"./factory":21}],24:[function(require,module,exports){
+},{"../core":39,"./Application":18,"./factory":21}],24:[function(require,module,exports){
 
 var core = require('../core');
 // Mix interactiveTarget into core.DisplayObject.prototype
@@ -22055,10 +22077,10 @@ function Ticker()
             // Invoke listeners now
             _this.update(time);
             // Listener side effects may have modified ticker state.
-            if (_this.started && _this._requestId === null && _this._emitter.listeners(TICK, true))
-            {
+            // if (_this.started && _this._requestId === null && _this._emitter.listeners(TICK, true))
+            // {
                 _this._requestId = requestAnimationFrame(_this._tick);
-            }
+            // }
         }
     };
     /**
@@ -22312,6 +22334,7 @@ Ticker.prototype.start = function start()
 {
     if (!this.started)
     {
+        console.log(33);
         this.started = true;
         this._requestIfNeeded();
     }

@@ -400,15 +400,8 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
  */
 InteractionManager.prototype.processInteractive = function ( evdate, evname)
 {
-    if(!displayObject.enabled)
-    {
-        return false;
-    }
-
     evdate.type = evname;
-
     this.renderer._lastObjectRendered.interaction(evname,evdate);
-
 };
 
 
