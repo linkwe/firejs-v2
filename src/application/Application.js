@@ -1,20 +1,17 @@
 var core = require('../core'),
 Loader = require('../loaders').Loader,
+tween = require('./tween'),
 EventEmitter = require('eventemitter3');
-
-var app ;
 
 function Application(ops){
 
-    if(app) return app ;
+    if(global.Q.app) return global.Q.app;
 
     EventEmitter.call(this);
 
-    app = this;
+    global.Q.app = this;
 
     this.loader = new Loader(); 
-
-    //console.log(this.loader);
 
     this.resolution = ops.resolution || 1 ;
 
@@ -33,13 +30,17 @@ function Application(ops){
         _h = document.documentElement.clientHeight;
     }
 
-    this.width  = _w ;//this.resolution * _w ;
-    
-    this.height = _h ;//this.resolution * _h ;
+    this.width  = _w ;
+    this.height = _h ;
 
     this.atyView = new core.Container();
 
-    this.renderer = core.autoDetectRenderer(this.width,this.height,this.resolution);
+    this.renderer = core.autoDetectRenderer(this.width,this.height,{
+        resolution:this.resolution,
+        backgroundColor : 0xffffff
+    });
+
+    this.element.appendChild(this.renderer.view);
 
     this._lastView = null;
 
@@ -55,11 +56,11 @@ function Application(ops){
 
     this.autoRender = true;
 
-    if(ops.listeners) this.addlisteners(ops.listeners) ;
-   
+    if(ops.listeners)for(var l in ops.listeners) this.on(l,ops.listeners[l]);
+ 
     core.ticker.shared.add( this.update, this);
-
-    core.ticker.shared.start();
+    
+    core.ticker.shared.add( tween.update, tween);
 
     this._initApplication(ops);
 
@@ -68,13 +69,18 @@ function Application(ops){
 Application.prototype = Object.create(EventEmitter.prototype);
 Application.prototype.constructor = Application;
 
-module.exports = Application;
+
+
+module.exports = Application ;
 
 
 Application.prototype._initApplication = function(ops){
-
     this.loadResources(ops.launch,ops.resources);
+};
 
+
+Application.prototype.go = function(name){
+    
 };
 
 Application.prototype.loadResources = function(launch,resources){
@@ -86,7 +92,7 @@ Application.prototype.loadResources = function(launch,resources){
     });
 
     if(launch){
-        loader.add(res.launch).load(function(a,b){
+        loader.add(launch).load(function(a,b){
             me.emit('launch',a,b);
         });
     }
@@ -105,6 +111,9 @@ Application.prototype.initControllers = function() {
 
 };
 
+Application.prototype.getRes = function(name) {
+    return this.loader.resources[name];
+};
 
 Application.prototype.update = function() {
     this.autoRender&&this.redraw();

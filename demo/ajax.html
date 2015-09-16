@@ -1,0 +1,28 @@
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title>ajax跨域请求</title>
+   <meta name="viewport" />
+	<style type="text/css">body,html,canvas,div{padding: 0;margin: 0;} </style>
+</head>
+<body>
+</body>
+<script src='../bin/pixi.js'></script>
+<script>
+
+var req = Q.req;
+var data1= { "mobileNum":"18601115514","password":"123","verifycode":"378211"};
+// JSON.stringify(data1)
+req({
+    url: 'http://app.extoys.net/extoys/register/userRegister.do'
+  , method: 'POST'
+  , contentType: 'application/json'
+  , data:data1
+  , error: function (err){}
+  , success: function (resp) {
+     console.log(resp)
+    }
+});
+
+</script>
+</html>

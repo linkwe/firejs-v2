@@ -15,7 +15,7 @@ function Panel(ops){
     this.needmask = ops.needmask || false ;
 
     this._mask = new core.gRect({
-        width:  this._width  ,
+        width:  this._width,
         height: this._height 
     });
 

@@ -3,7 +3,7 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<title></title>
    <meta name="viewport" />
-	<style type="text/css">body,html,canvas,div{padding: 0;margin: 0;} </style>
+	<style type="text/css">body,html,canvas,div{ padding: 0;margin: 0; } </style>
 </head>
 <body>
 
@@ -11,38 +11,45 @@
 <script src='../bin/pixi.js'></script>
 <script>
 
-var a  = Q('App',{
-
+Q('App',{
     resources:[
         {name:'im1',url:'res/1.jpg'}
     ],
 
+    launch:[
+        {name:'im2',url:'res/2.jpg'}
+    ],
+
     listeners:{
-        init:function(b,c){
+        progress:function(a,b){
+            console.log(a,b)
+        },
+        init:function(){
 
-            console.log('init')
-
-            a.container.addChild(Q('Image',{
-                texture:c['im1'].texture,
-                width:300,
-                height:300,
-                x:100,
-                y:100
-            }));
-
+            console.log('init');
 
         },
         launch:function(){
 
-            console.log('launch')
+            var im =  Q('Image',{
+                texture:Q.app.getRes('im1').texture,
+                width:Q.app.width,
+                height:Q.app.height
+            });
 
+            Q.tween({
+                obj:im,
+                to:{ x:100 },
+                inverse:true,
+                repeat:2,
+                time:1000
+            });
+
+            this.container.addChild(im);
+            
         }
     }
 });
-
-// console.log();
-
-// a.container.addChild(Q('Image'))
 
 </script>
 </html>
