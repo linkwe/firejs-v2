@@ -14,6 +14,8 @@ factory.bindClass('Image',core.Image,function(c,ops){
 
 factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
+factory.bindClass('Panel',require('./Panel'),null,factory.TYPE_CON);
+
 function qset( ops, isfunc, exc )
 {
     ops = ops||{};

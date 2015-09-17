@@ -9,7 +9,7 @@ function Controller(ops){
 
     this._control = ops.control;
 
-    this.resf =null;
+    this.resf = null;
 
     this.control = null;
 
@@ -21,7 +21,7 @@ function Controller(ops){
 
 }
 
-Controller.prototype.constructor = Container;
+Controller.prototype.constructor = Controller ;
 
 module.exports = Controller;
 

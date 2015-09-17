@@ -1,30 +1,46 @@
+var core = require('../core'),
+    tween = require('./tween');
 
 
-
-function Transitions( renderer, w, h, r ){
-    
-
-var ren = renderer;
-
-var trnA = new RenderTexture(ren,w,h,null,r);
-var trnB = new RenderTexture(ren,w,h,null,r);
-
-// var imA = new _Image({texture:trnA});
-// var imB = new _Image({texture:trnB});
-
-!function(trn){
-
-trn.default = trn.small = function(op){
+function Transitions( ren ){
    
-    var imA = new _Image({
-        texture:op.textureA,//new Texture(op.textureA.baseTexture),
-        width:  op.textureA.width,
-        height: op.textureA.height,
-        x:0,
-        y:0
+    return;
+
+    this.renderer = ren;
+
+    this.trnA = new core.RenderTexture( ren, ren.width, 
+        ren.height, null, ren.resolution );
+
+    this.trnB = new core.RenderTexture( ren, ren.width, 
+        ren.height, null, ren.resolution );
+
+    this.container = new core.Container();
+
+    this.container.enabled = false;
+
+};
+
+
+Transitions.prototype = Object.create(core.Container.prototype);
+Transitions.prototype.constructor = Transitions;
+module.exports = Transitions;
+
+
+Transitions.prototype.update = function(){
+    this.renderer.render(this.container);
+};
+
+Transitions.default = function( op ){
+ 
+    var imA = new core.Image({
+        texture:op.textureA ,//new Texture(op.textureA.baseTexture),
+        width:  op.textureA.width ,
+        height: op.textureA.height ,
+        x: 0 ,
+        y: 0
     });
 
-    var imB = new _Image({
+    var imB = new core.Image({
         texture:op.textureB,//new Texture(op.textureB.baseTexture),
         width:  op.textureB.width,
         height: op.textureB.height,
@@ -39,7 +55,7 @@ trn.default = trn.small = function(op){
             x:0
         },
         time:1000,
-        ease:miao.Tween.ease.Quartic.Out,
+        ease:tween.ease.Quartic.Out,
         onComplete:op.cak
     });
 
@@ -48,100 +64,39 @@ trn.default = trn.small = function(op){
             x:-op.textureB.width
         },
         time:1000,
-        ease:miao.Tween.ease.Quartic.Out
-    });
-};
-
-trn.default = trn.fadeIn = function(op){
-   
-    var imA = new _Image({
-        texture:op.textureA,//new Texture(op.textureA.baseTexture),
-        width:  op.textureA.width,
-        height: op.textureA.height,
-        x:0,
-        y:0
+        ease:tween.ease.Quartic.Out
     });
 
-    var imB = new _Image({
-        texture:op.textureB,//new Texture(op.textureB.baseTexture),
-        width:  op.textureB.width,
-        height: op.textureB.height,
-        // x:op.textureB.width
-    });
+}
 
-    op.container.addChild(imB);
+Transitions.prototype.switch = function(ops){
+    var a = ops.ta,
+        b = ops.tb,
+        d = ops.cak,
 
-    op.container.addChild(imA);
+        parent = ops.container;
 
+        this.trnA.resize(a.width,a.height);
+        this.trnB.resize(b.width,b.height);
+        this.trnA.render(a,false,true);
+        this.trnB.render(b,false,true);
 
-    imA.animate({
-        to:{
-            alpha:0
-        },
-        time:1200,
-        // ease:miao.Tween.ease.Quartic.Out,
-        onComplete:op.cak
-    });
+        var autoRender = this.renderer.parent.autoRender ;
+        var me = this ;
+        this.renderer.parent.autoRender = false;
 
-    // imA.animate({
-    //     to:{
-    //         x:-op.textureB.width
-    //     },
-    //     time:1000,
-    //     ease:miao.Tween.ease.Quartic.Out
-    // });
-};
+        core.ticker.shared.add( this.update );
 
-}(
-
-//a过渡a  b过渡b c是过度效果的绘制对象c，没有责绘制在系统ui. d 过度后的回调。
-
-miao.Transitions = function(op){
-
-      var a = op.ta,
-            b = op.tb,
-            c = new Container(),
-            d = op.cak,
-            parent = op.container||miao.app.container ;
-
-        trnA.resize(a.width,a.height);
-        trnB.resize(b.width,b.height);
-        
-        trnA.render(a,false,true);
-        trnB.render(b,false,true);
-
-
-        miao.app.run = function(){
-            miao.app.autoRender = false;
-            miao.app.renderer.render(c);
-        }
-
-        var _enabled = miao.app.container.enabled;
-
-        miao.app.container.enabled = false;
-
-        if(op.wd !== false){
-            var gui_v = miao.app.GUI.visible;
-            var aty_v = miao.app.atyView.visible;
-            miao.app.GUI.visible = false;
-            miao.app.atyView.visible = false;
-        }
-
-        (op.transitions||miao.Transitions.default)({
+        (op.transitions||Transitions.default)({
             textureA:trnA,
             textureB:trnB,
-            container:c,
+            container:this.container,
             cak:function(){
-                miao.app.autoRender = true ;
-                miao.app.container.enabled = _enabled;
-                if(op.wd !== false){
-                    miao.app.GUI.visible = gui_v;
-                    miao.app.atyView.visible = aty_v;
-                }
+                core.ticker.shared.remove( me.update );
+                me.renderer.parent.autoRender = autoRender ;
                 d&&d();
             }
         });
-    });
 };
 
 core.WebGLRenderer.registerPlugin(  'transitions' , Transitions );

@@ -22,30 +22,59 @@ Q('App',{
 
     listeners:{
         progress:function(a,b){
-            console.log(a,b)
+            // console.log(a,b)
         },
         init:function(){
 
-            console.log('init');
+
+            var pa = Q('Panel',{
+
+                // background:0xaabbcc,
+                width:Q.app.width,
+                height:Q.app.height,
+
+                items:[{
+                    xtype:'Image',
+                    texture:Q.app.getRes('im2').texture,
+                    width:Q.app.width*.5,
+                    height:Q.app.height*.5
+                }]
+            });
+
+            pa.mask = new Q.gRect({
+                x:0,
+                y:0,
+                width:200,
+                height:200
+            });
+
+            console.log(pa);
+
+         
+           
+            this.container.addChild(pa);
 
         },
         launch:function(){
 
-            var im =  Q('Image',{
-                texture:Q.app.getRes('im1').texture,
-                width:Q.app.width,
-                height:Q.app.height
-            });
+            // var im =  Q('Image',{
+            //     texture:Q.app.getRes('im1').texture,
+            //     width:Q.app.width,
+            //     height:Q.app.height
+            // });
 
-            Q.tween({
-                obj:im,
-                to:{ x:100 },
-                inverse:true,
-                repeat:2,
-                time:1000
-            });
+            // Q.tween({
+            //     obj:im,
+            //     to:{ x:100 },
+            //     inverse:true,
+            //     repeat:2,
+            //     time:1000
+            // });
 
-            this.container.addChild(im);
+
+
+
+            // this.container.addChild(im);
             
         }
     }

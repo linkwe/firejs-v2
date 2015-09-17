@@ -51,6 +51,13 @@ function DisplayObject()
      */
     this.alpha = 1;
 
+     /**
+     * The opacity of the object.
+     *
+     * @member {number}
+     */
+    this.depth = 0 ;
+
     /**
      * The visibility of the object. If false the object will not be drawn, and
      * the updateTransform function will not be called.
@@ -59,13 +66,7 @@ function DisplayObject()
      */
     this.visible = true;
 
-    /**
-     * Can this object be rendered, if false the object will not be drawn but the updateTransform
-     * methods will still be called.
-     *
-     * @member {boolean}
-     */
-    this.renderable = true;
+    
 
     /**
      * The display object container that contains this display object.
@@ -131,29 +132,78 @@ function DisplayObject()
      */
     this._currentBounds = null;
 
-    /**
+    //TODO rename to _isMask
+   // this.isMask = false;
+
+   
+}
+
+// constructor
+DisplayObject.prototype = Object.create(EventEmitter.prototype);
+
+
+Object.assign(DisplayObject.prototype,{
+     /**
      * The original, cached mask of the object
      *
      * @member {Rectangle}
      * @private
      */
-    this._mask = null;
-
-    //TODO rename to _isMask
-   // this.isMask = false;
-
-    /**
+    _mask:null,
+     /**
      * Cached internal flag.
      *
      * @member {boolean}
      * @private
      */
-    this._cacheAsBitmap = false;
-    this._cachedObject = null;
-}
+    _cacheAsBitmap:false,
+    _cachedObject :null,
 
-// constructor
-DisplayObject.prototype = Object.create(EventEmitter.prototype);
+    /**
+     * Can this object be rendered, if false the object will not be drawn but the updateTransform
+     * methods will still be called.
+     *
+     * @member {boolean}
+     */
+    renderable:true,
+    /**
+     * 是否启动交互
+     * @type {Boolean}
+     */
+    interactive:false,
+    /**
+     * @todo Needs docs.
+     */
+    buttonMode:false,
+   
+    /**
+     * @todo Needs docs.
+     */
+    defaultCursor:'pointer',
+
+    /**
+     * @todo Needs docs.
+     * @private
+     */
+    _over:false,
+    /**
+     * @todo Needs docs.
+     * @private
+     */
+    _touchDown:false,
+
+    /**
+     * @todo Needs docs.
+     * @private
+     */
+    enabled:true
+
+});
+
+
+
+
+
 DisplayObject.prototype.constructor = DisplayObject;
 module.exports = DisplayObject;
 
@@ -263,6 +313,51 @@ Object.defineProperties(DisplayObject.prototype, {
         {
             this._filters = value && value.slice();
         }
+    },
+
+    interaction:{value:function( name, evDate, hit ){
+
+        if( !this.enabled || evDate.stopped ) return ;
+        this.containsPoint( evDate.global )&&this.emit( name, evDate );
+
+    }},
+
+    containsPoint:{value:function(point){ /** TODO:*/ }},
+
+    enabled:{value:true},
+
+    scaleX: {
+        
+        get: function ()
+        {
+            return this.scale.x;
+        },
+        set: function (value)
+        {
+            this.scale.x = value;
+        }
+    },
+    scaleY: {
+        get: function ()
+        {
+            return this.scale.y;
+        },
+        set: function (value)
+        {
+            this.scale.y = value;
+        }
+    },
+
+    angle: {
+        get: function ()
+        {
+            return this.rotation / core.DEG_TO_RAD;
+        },
+        set: function (value)
+        {
+            this.rotation = 
+            value * core.DEG_TO_RAD ;
+        }
     }
 
 });
@@ -354,6 +449,14 @@ DisplayObject.prototype.displayObjectUpdateTransform = DisplayObject.prototype.u
 DisplayObject.prototype.getBounds = function (matrix) // jshint unused:false
 {
     return math.Rectangle.EMPTY;
+};
+
+
+DisplayObject.prototype.setDepth = function (idx) // jshint unused:false
+{
+    this.depth = idx;
+    if(this.parent)this.parent._sort = true;
+    return this;
 };
 
 /**

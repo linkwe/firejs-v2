@@ -40,6 +40,8 @@ function Application(ops){
         backgroundColor : 0xffffff
     });
 
+    this.renderer.parent = this;
+
     this.element.appendChild(this.renderer.view);
 
     this._lastView = null;
@@ -115,7 +117,7 @@ Application.prototype.getRes = function(name) {
     return this.loader.resources[name];
 };
 
-Application.prototype.update = function() {
+Application.prototype.update = function(){
     this.autoRender&&this.redraw();
 };
 

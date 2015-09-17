@@ -1,10 +1,8 @@
-var core = require('../core');
-
-
+var Panel = require('./Panel');
 
 function View(ops){
 
-    core.Container.call(this);
+    Panel.call(this);
 
     this._width  = ops.width ;
 
@@ -31,6 +29,6 @@ function View(ops){
      */
 }
 
-View.prototype = Object.create(Container.prototype);
+View.prototype = Object.create(Panel.prototype);
 View.prototype.constructor = View;
 module.exports = View;

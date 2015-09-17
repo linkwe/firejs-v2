@@ -1,7 +1,13 @@
+var core = require('../core');
+
 function Layout(){
 
 
 }
+
+Layout.prototype = Object.create(core.Container.prototype);
+Layout.prototype.constructor = Layout;
+module.exports = Layout;
 
 
 Layout.prototype.vbox = function( panel , children , ops){

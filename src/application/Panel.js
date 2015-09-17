@@ -1,6 +1,5 @@
 var core = require('../core'),
-var layout = require('../core'),
-
+factory = require('./factory');
 
 function Panel(ops){
 
@@ -12,16 +11,18 @@ function Panel(ops){
 
     this.needUpdateLayout = true;
 
-    this.needmask = ops.needmask || false ;
+    this.needmask = ops.needmask || true ;
 
-    this._mask = new core.gRect({
-        width:  this._width,
-        height: this._height 
-    });
+    // this.mask = new core.gRect({
+    //     width:  this._width*.5,
+    //     height: this._height *.5
+    // });
 
-    this._mask.parent = this;
+    // this._mask.parent = this;
 
     this._background = null ;
+
+    if(ops.background)this.background = ops.background ;
 
     /**
      * hbox
@@ -30,13 +31,16 @@ function Panel(ops){
      * none
      */
 
-    this._layout = ops.layout || {
-        type:
+    if(ops.items) this.setItems( ops.items );
 
-    };
+    this._layout = ops.layout ;
 
 
-}
+};
+
+Panel.prototype = Object.create(core.Container.prototype);
+Panel.prototype.constructor = Panel;
+module.exports = Panel;
 
 
 Panel.prototype.updateTransform = function ()
@@ -59,10 +63,23 @@ Panel.prototype.updateTransform = function ()
 
 Panel.prototype.updateLayout = function(){
 
-    layout[this.layout.type]( this , this.children , this.layout)
+    // layout[this.layout.type]( this, this.children, this.layout );
+    // this.needUpdateLayout = false;
 
-    this.needUpdateLayout = false;
+}
 
+
+Panel.prototype.setItems = function(a){
+
+    for(var i=0,l=a.length;i<l;i++){
+
+        if(factory.__class[a[i].xtype]){
+            var o = factory.factoryObject(a[i].xtype,a[i])
+            this.addChild(o);
+        }
+    }
+    return this;
+    
 }
 
 Panel.prototype.renderWebGL = function (renderer)
@@ -76,9 +93,7 @@ Panel.prototype.renderWebGL = function (renderer)
 
     var i, j;
 
-    if(this._background){
-        this._background.renderWebGL(renderer);
-    }
+    
 
     // do a quick check to see if this element has a mask or a filter.
     if (this._mask || this._filters)
@@ -102,6 +117,9 @@ Panel.prototype.renderWebGL = function (renderer)
         this._renderWebGL(renderer);
 
         // now loop through the children and make sure they get rendered
+        if(this._background){
+            this._background.renderWebGL(renderer);
+        }
         for (i = 0, j = this.children.length; i < j; i++)
         {
             this.children[i].renderWebGL(renderer);
@@ -109,7 +127,7 @@ Panel.prototype.renderWebGL = function (renderer)
 
         renderer.currentRenderer.flush();
 
-        if (this._mask)
+        if (this._mask && this.needmask)
         {
             renderer.maskManager.popMask(this, this._mask);
         }
@@ -124,6 +142,10 @@ Panel.prototype.renderWebGL = function (renderer)
     else
     {
         this._renderWebGL(renderer);
+
+        if(this._background){
+            this._background.renderWebGL(renderer);
+        }
 
         // simple render children!
         for (i = 0, j = this.children.length; i < j; ++i)
@@ -142,9 +164,7 @@ Panel.prototype.renderCanvas = function (renderer)
         return;
     }
 
-    if(this._background){
-        this._background.renderCanvas(renderer);
-    }
+    
 
     if (this._mask && this.needmask)
     {
@@ -184,10 +204,18 @@ Object.defineProperties(Panel.prototype, {
                     color:value
                 });
 
-                this._background.parent = this;
+                this._background.depth = -100;
+                this.addChild(this._background);
 
             }else{
-                this._background.color = value;
+                if(value===null&&this._background){
+                    this.removeChild(this._background);
+                    this._background = value;
+
+                }else{
+                    this._background.color = value;
+                }
+                
             }
         }
     }

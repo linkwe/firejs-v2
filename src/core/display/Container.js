@@ -26,11 +26,19 @@ function Container()
      * @readonly
      */
     this.children = [];
+
+  
 }
 
 // constructor
 Container.prototype = Object.create(DisplayObject.prototype);
 Container.prototype.constructor = Container;
+
+/**
+ * @todo Needs docs.
+ */
+Container.prototype.interactiveChildren = true;
+
 module.exports = Container;
 
 Object.defineProperties(Container.prototype, {
@@ -102,7 +110,36 @@ Object.defineProperties(Container.prototype, {
  */
 Container.prototype.addChild = function (child)
 {
-    return this.addChildAt(child, this.children.length);
+    if(this.children.length<1){
+        this.children.push(child);
+    }else{
+        for(var i=this.children.length-1;0<=i;i--){
+            if(this.children[i].depth<=child.depth){
+                this.children.splice(i+1,0,child);break;
+            }else{
+                if(i==0)this.children.unshift(child);
+            }
+        }
+    }
+    child.parent = this;
+    return child;
+};
+
+Container.prototype.addChild = function (child)
+{
+    if(this.children.length<1){
+        this.children.push(child);
+    }else{
+        for(var i=this.children.length-1;0<=i;i--){
+            if(this.children[i].depth<=child.depth){
+                this.children.splice(i+1,0,child);break;
+            }else{
+                if(i==0)this.children.unshift(child);
+            }
+        }
+    }
+    child.parent = this;
+    return child;
 };
 
 /**
@@ -129,7 +166,7 @@ Container.prototype.addChildAt = function (child, index)
 
         child.parent = this;
 
-        this.children.splice(index, 0, child);
+        this.children.splice( index, 0, child );
 
         child.emit('added', this);
 
@@ -320,6 +357,11 @@ Container.prototype.updateTransform = function ()
 {
     if (!this.visible) {
         return;
+    }
+
+    if(this._sort){
+        this.children.sort(function(c,d){return c.depth>d.depth});
+        this._sort = false;
     }
 
     this.displayObjectUpdateTransform();
