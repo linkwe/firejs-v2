@@ -37,7 +37,6 @@ Container.prototype.constructor = Container;
 /**
  * @todo Needs docs.
  */
-Container.prototype.interactiveChildren = true;
 
 module.exports = Container;
 
@@ -102,6 +101,26 @@ Object.defineProperties(Container.prototype, {
     }
 });
 
+Container.prototype.interactiveChildren = true;
+
+Container.prototype.interaction = function( name , evDate, hit ){
+
+    if(!this.enabled || evDate.stopped)return;
+
+    this.containsPoint(evDate.global)&&this.emit(name,evDate);
+
+    var children = this.children;
+
+    if(this.interactiveChildren)
+    {
+        for (var i = children.length-1; i >= 0; i--)
+        {
+            if(evDate.stopped)return;
+            children[i].interaction(name , evDate, hit);
+        }
+    }
+};
+
 /**
  * Adds a child to the container.
  *
@@ -122,23 +141,7 @@ Container.prototype.addChild = function (child)
         }
     }
     child.parent = this;
-    return child;
-};
-
-Container.prototype.addChild = function (child)
-{
-    if(this.children.length<1){
-        this.children.push(child);
-    }else{
-        for(var i=this.children.length-1;0<=i;i--){
-            if(this.children[i].depth<=child.depth){
-                this.children.splice(i+1,0,child);break;
-            }else{
-                if(i==0)this.children.unshift(child);
-            }
-        }
-    }
-    child.parent = this;
+    child.emit('added', this);
     return child;
 };
 
@@ -537,6 +540,19 @@ Container.prototype.renderWebGL = function (renderer)
             this.children[i].renderWebGL(renderer);
         }
     }
+};
+
+
+Container.prototype.findByName = function (name)
+{
+    for (var i = 0; i < this.children.length; i++) 
+    {
+        if (this.children[i].name === name) 
+        {
+            return this.children[i];
+        }
+    }
+    return null;
 };
 
 /**

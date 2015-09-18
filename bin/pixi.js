@@ -2937,6 +2937,12 @@ EventEmitter.prototype.listeners = function listeners(event, exists) {
   return ee;
 };
 
+EventEmitter.prototype.listener = function(ops) {
+    for(var i in ops){
+      this.on(i,ops[i])
+    }
+};
+
 /**
  * Emit an event to all registered event listeners.
  *
@@ -4684,6 +4690,8 @@ function Application(ops){
 
     container.addChild(this.GUI) ;
 
+    container.name = 'main';
+
     this.container = container;
 
     this.autoRender = true;
@@ -5026,8 +5034,7 @@ function InteractionData()
     this.global = new core.Point();
 
 
-    this.start = new core.Point();
-
+    this.delay = new core.Point();
     /**
      * The target Sprite that was interacted with
      *
@@ -5401,6 +5408,7 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
     var rect = this.interactionDOMElement.getBoundingClientRect();
     point.x = ( ( x - rect.left ) * (this.interactionDOMElement.width  / rect.width  ) ) / this.resolution;
     point.y = ( ( y - rect.top  ) * (this.interactionDOMElement.height / rect.height ) ) / this.resolution;
+
 };
 
 /**
@@ -5416,6 +5424,8 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
 InteractionManager.prototype.processInteractive = function ( evdate, evname)
 {
     evdate.type = evname;
+
+    // console.log(this.renderer._lastObjectRendered.name);
     this.renderer._lastObjectRendered.interaction(evname,evdate);
 };
 
@@ -5505,7 +5515,6 @@ InteractionManager.prototype.onMouseMove = function (event)
         this.interactionDOMElement.style.cursor = this.cursor;
     }
 
-    //TODO BUG for parents ineractive object (border order issue)
 };
 
 
@@ -5519,15 +5528,12 @@ InteractionManager.prototype.onMouseMove = function (event)
 InteractionManager.prototype.onMouseOut = function (event)
 {
     this.eventData.originalEvent = event;
+
     this.eventData.stopped = false;
 
-    // Update internal mouse reference
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
     this.interactionDOMElement.style.cursor = 'inherit';
-
-    // TODO optimize by not check EVERY TIME! maybe half as often? //
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY );
 
     this.processInteractive( this.eventData, 'mouseout' );
 };
@@ -5579,24 +5585,39 @@ InteractionManager.prototype.onTouchStart = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length, _x, _y;
+    var cLength = changedTouches.length, touchEvent, touchData;
 
-    for (var i=0; i < cLength; i++)
-    {
+    this.eventData.delay.x = this.eventData.delay.y = 0 ;
 
-        var touchEvent = changedTouches[i];
+    if(cLength==1){
 
-        var touchData = this.getTouchData( touchEvent );
+        touchEvent = changedTouches[0];
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        this.eventData.originalEvent = event;
 
-        touchEvent.startX = touchEvent.globalX;
-        touchEvent.startY = touchEvent.globalY;
+        this.eventData.stopped = false;
 
-        this.processInteractive( touchData, 'touchstart');
+        this.mapPositionToPoint( this.eventData.global, touchEvent.clientX, touchEvent.clientY);
 
-        this.returnTouchData( touchData );
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchstart' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchstart');
+
+            this.returnTouchData( touchData );
+        }
     }
 };
 
@@ -5614,27 +5635,43 @@ InteractionManager.prototype.onTouchEnd = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length , _x , _y;
+    var cLength = changedTouches.length, touchEvent, touchData;
+    var cLength = changedTouches.length, touchEvent, touchData;
 
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
+    this.eventData.delay.x = this.eventData.delay.y = 0 ;
 
-        var touchData = this.getTouchData( touchEvent );
+    if(cLength==1){
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        touchEvent = changedTouches[0];
 
-        this.processInteractive( touchData, 'touchend' );
+        this.eventData.originalEvent = event;
 
-        _x = touchEvent.globalX - touchEvent.startX ;
-        _y = touchEvent.globalY - touchEvent.startY ;
+        this.eventData.stopped = false;
 
-        if(  Math.pow(_x*_x+_y*_y,.5) < this.rocuo)
-        this.processInteractive( touchData, 'tap' );
+        this.mapPositionToPoint( this.eventData.global, touchEvent.clientX, touchEvent.clientY);
 
-        this.returnTouchData( touchData );
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchstart' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchstart');
+
+            this.returnTouchData( touchData );
+        }
     }
+   
 };
 
 
@@ -5653,21 +5690,49 @@ InteractionManager.prototype.onTouchMove = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length;
+    var cLength = changedTouches.length, touchEvent, touchData ;
 
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
+    if(cLength==1){
 
-        var touchData = this.getTouchData( touchEvent );
+        touchEvent = changedTouches[0];
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        this.eventData.originalEvent = event;
 
-        this.processInteractive( touchData, 'touchmove' );
+        this.eventData.stopped = false;
 
-        this.returnTouchData( touchData );
+        this.mapPositionToPoint( this._tempPoint, touchEvent.clientX, touchEvent.clientY );
+
+
+        this.eventData.delay.x = this._tempPoint.x - this.eventData.global.x;
+
+        this.eventData.delay.y = this._tempPoint.y - this.eventData.global.y;
+
+        this.eventData.global.x = this._tempPoint.x ;
+
+        this.eventData.global.y = this._tempPoint.y ;
+
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchmove' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchmove');
+
+            this.returnTouchData( touchData );
+        }
     }
+
+   
 };
 
 
@@ -5825,43 +5890,50 @@ function Panel(ops){
 
     core.Container.call(this);
 
-    this._width  = ops.width ;
+    this._width  = 0;
 
-    this._height = ops.height ;
+    this._height = 0;
 
     this.needUpdateLayout = true;
 
     this.needmask = ops.needmask || true ;
 
-    // this.mask = new core.gRect({
-    //     width:  this._width*.5,
-    //     height: this._height *.5
-    // });
-
-    // this._mask.parent = this;
+    this.scroll = false;
 
     this._background = null ;
+    
+    this.width = ops.width||0;
+
+    this.height = ops.height||0;
+
+    core.utils.qset.call(this,ops,true,['items','background']);
+
+    this.mask = new core.gRect({
+        width:  this._width,
+        height: this._height
+    });
 
     if(ops.background)this.background = ops.background ;
 
-    /**
-     * hbox
-     * vbox
-     * grid
-     * none
-     */
+    var con = new core.Container();
+
+    this.container = con;
+
+    con._width = this._width;
+    con._height = this._height;
+
+
+    this.addChild(con);
 
     if(ops.items) this.setItems( ops.items );
 
     this._layout = ops.layout ;
-
 
 };
 
 Panel.prototype = Object.create(core.Container.prototype);
 Panel.prototype.constructor = Panel;
 module.exports = Panel;
-
 
 Panel.prototype.updateTransform = function ()
 {
@@ -5880,6 +5952,23 @@ Panel.prototype.updateTransform = function ()
     }
 };
 
+Panel.prototype.containsPoint = function(_point){
+    
+
+    var point = this.position,
+        anchor = this.anchor||{x:0,y:0},
+        scale = this.scale,
+        tw = this._width ,
+        th = this._height;
+
+    var _x = point.x - anchor.x * tw * scale.x,
+        _y = point.y - anchor.y * th * scale.y;
+
+    return !(_point.x<_x||_point.x>_x+tw*scale.x||
+            _point.y<_y||_point.y>_y+th*scale.y);
+
+}
+
 
 Panel.prototype.updateLayout = function(){
 
@@ -5895,7 +5984,7 @@ Panel.prototype.setItems = function(a){
 
         if(factory.__class[a[i].xtype]){
             var o = factory.factoryObject(a[i].xtype,a[i])
-            this.addChild(o);
+            this.container.addChild(o);
         }
     }
     return this;
@@ -5913,14 +6002,11 @@ Panel.prototype.renderWebGL = function (renderer)
 
     var i, j;
 
-    
-
-    // do a quick check to see if this element has a mask or a filter.
+  
     if (this._mask || this._filters)
     {
         renderer.currentRenderer.flush();
 
-        // push filter first as we need to ensure the stencil buffer is correct for any masking
         if (this._filters)
         {
             renderer.filterManager.pushFilter(this, this._filters);
@@ -6008,6 +6094,51 @@ Panel.prototype.renderCanvas = function (renderer)
 
 
 Object.defineProperties(Panel.prototype, {
+
+    width: {
+        get: function ()
+        {
+            return this._width;
+        },
+        set: function (value)
+        {
+
+            if(typeof value === 'string')
+            value = core.utils.getPix(value);
+            this._width = value;
+        }
+    },
+
+    height: {
+        get: function ()
+        {
+            return this._height;
+        },
+        set: function (value)
+        {
+            if(typeof value === 'string')
+            value = core.utils.getPix(value);
+            this._height = value;
+        }
+    },
+
+    mask: {
+        get: function ()
+        {
+            return this._mask;
+        },
+        set: function (value)
+        {
+            
+            if (this._mask)
+            {
+                this.removeChild(this._mask);
+            }
+            this._mask = value;
+            this.addChild(this._mask);
+            this._mask.renderable = false;
+        }
+    },
    
     background: {
         get: function ()
@@ -6360,36 +6491,14 @@ factory.bindClass('Image',core.Image,function(c,ops){
         url:ops.url,
         resId:ops.resId
     });
-    return qset.call(obj,ops,null,['texture','url','resId']);
+    return core.utils.qset.call(obj,ops,true,['texture','url','resId']);
+
 },factory.TYPE_FAC);
 
 factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
 factory.bindClass('Panel',require('./Panel'),null,factory.TYPE_CON);
 
-function qset( ops, isfunc, exc )
-{
-    ops = ops||{};
-    var isCV = !!ops.cover && Object.prototype.toString.call(ops.cover)==='[object Object]';
-
-    if(Object.prototype.toString.call(exc)!=='[object Array]')exc=[];
-
-    if(isCV)exc.push('cover');
-
-    for(var i in ops){
-        if(exc.indexOf(i)!=-1)continue;
-        if(this[i]!==undefined&&typeof this[i]!=='function')this[i]=ops[i];
-    }
-
-    if(isCV)for(var i in ops.cover)this[i]=ops.cover[i];
-
-    if(isfunc!==false)for(var i in ops){
-        if(exc.indexOf(i)!=-1)continue;
-        if(this[i]==='function')this[i](ops[i]);
-    }
-
-    return this;
-}
 },{"../core":44,"./Application":18,"./Panel":22,"./factory":26}],29:[function(require,module,exports){
 !function (name, context, definition) {
  module.exports = definition();
@@ -8083,7 +8192,6 @@ Container.prototype.constructor = Container;
 /**
  * @todo Needs docs.
  */
-Container.prototype.interactiveChildren = true;
 
 module.exports = Container;
 
@@ -8147,6 +8255,26 @@ Object.defineProperties(Container.prototype, {
         }
     }
 });
+
+Container.prototype.interactiveChildren = true;
+
+Container.prototype.interaction = function( name , evDate, hit ){
+
+    if(!this.enabled || evDate.stopped)return;
+
+    this.containsPoint(evDate.global)&&this.emit(name,evDate);
+
+    var children = this.children;
+
+    if(this.interactiveChildren)
+    {
+        for (var i = children.length-1; i >= 0; i--)
+        {
+            if(evDate.stopped)return;
+            children[i].interaction(name , evDate, hit);
+        }
+    }
+};
 
 /**
  * Adds a child to the container.
@@ -8585,6 +8713,19 @@ Container.prototype.renderWebGL = function (renderer)
     }
 };
 
+
+Container.prototype.findByName = function (name)
+{
+    for (var i = 0; i < this.children.length; i++) 
+    {
+        if (this.children[i].name === name) 
+        {
+            return this.children[i];
+        }
+    }
+    return null;
+};
+
 /**
  * To be overridden by the subclass
  *
@@ -8664,6 +8805,7 @@ var math = require('../math'),
     RenderTexture = require('../textures/RenderTexture'),
     EventEmitter = require('eventemitter3'),
     CONST = require('../const'),
+    utils = require('../utils'),
     _tempMatrix = new math.Matrix();
 
 /**
@@ -8805,6 +8947,9 @@ DisplayObject.prototype = Object.create(EventEmitter.prototype);
 
 
 Object.assign(DisplayObject.prototype,{
+    layout:1,
+
+    name:'none',
      /**
      * The original, cached mask of the object
      *
@@ -8883,6 +9028,9 @@ Object.defineProperties(DisplayObject.prototype, {
         },
         set: function (value)
         {
+            if(typeof value === 'string')
+            value = utils.getPix(value);
+
             this.position.x = value;
         }
     },
@@ -8900,6 +9048,9 @@ Object.defineProperties(DisplayObject.prototype, {
         },
         set: function (value)
         {
+            if(typeof value === 'string')
+            value = utils.getPix(value);
+
             this.position.y = value;
         }
     },
@@ -8977,17 +9128,9 @@ Object.defineProperties(DisplayObject.prototype, {
         }
     },
 
-    interaction:{value:function( name, evDate, hit ){
+   
 
-        if( !this.enabled || evDate.stopped ) return ;
-        this.containsPoint( evDate.global )&&this.emit( name, evDate );
-
-    }},
-
-    containsPoint:{value:function(point){ /** TODO:*/ }},
-
-    enabled:{value:true},
-
+  
     scaleX: {
         
         get: function ()
@@ -9010,20 +9153,36 @@ Object.defineProperties(DisplayObject.prototype, {
         }
     },
 
+
+
     angle: {
         get: function ()
         {
-            return this.rotation / core.DEG_TO_RAD;
+            return this.rotation / CONST.DEG_TO_RAD;
         },
         set: function (value)
         {
             this.rotation = 
-            value * core.DEG_TO_RAD ;
+            value * CONST.DEG_TO_RAD ;
         }
     }
 
 });
 
+
+DisplayObject.prototype.interaction = function( name, evDate, hit ){
+
+    if( !this.enabled || evDate.stopped ) return ;
+    this.containsPoint( evDate.global )&&this.emit( name, evDate );
+
+};
+
+DisplayObject.prototype.containsPoint = function( ){
+
+
+};
+
+  
 /*
  * Updates the object transform for rendering
  *
@@ -9229,7 +9388,7 @@ DisplayObject.prototype.destroy = function ()
     
 };
 
-},{"../const":31,"../math":47,"../textures/RenderTexture":86,"eventemitter3":9}],34:[function(require,module,exports){
+},{"../const":31,"../math":47,"../textures/RenderTexture":86,"../utils":92,"eventemitter3":9}],34:[function(require,module,exports){
 var Container = require('../display/Container'),
     Texture = require('../textures/Texture'),
     CanvasBuffer = require('../renderers/canvas/utils/CanvasBuffer'),
@@ -19459,6 +19618,28 @@ Image_.prototype.constructor = Image_;
 module.exports = Image_;
 
 Object.defineProperties(Image_.prototype, {
+
+    anchorX: {
+        get: function ()
+        {
+            return this.anchor.x;
+        },
+        set: function (value)
+        {
+            this.anchor.x = value;
+        }
+    },
+
+    anchorY: {
+        get: function ()
+        {
+            return this.anchor.y;
+        },
+        set: function (value)
+        {
+            this.anchor.y = value;
+        }
+    },
     /**
      * The width of the sprite, setting this will actually modify the scale to achieve the value set
      *
@@ -19582,6 +19763,23 @@ Image_.prototype._onTextureUpdate = function ()
     {
         this.scale.y = this._height / this.texture.frame.height;
     }
+};
+
+/**
+ * When the texture is updated, this event will fire to update the scale and frame
+ *
+ * @private
+ */
+Image_.prototype.auto = function(a){
+    console.log('auto');
+    if(a.w && typeof a.w === 'string')
+        a.w = utils.getPix(a.w);
+    if(a.h && typeof a.h === 'string')
+        a.h = utils.getPix(a.h);
+    var wh = utils.usRatio(a,this._texture.baseTexture.source);
+    this.width = wh.w;
+    this.height = wh.h;
+    return this;
 };
 
 /**
@@ -23670,6 +23868,42 @@ var utils = module.exports = {
     rgb2hex: function (rgb)
     {
         return ((rgb[0]*255 << 16) + (rgb[1]*255 << 8) + rgb[2]*255);
+    },
+
+    usRatio:function(a,b){
+        var bw = b.width , bh = b.height;
+        if(a.w)return {w:a.w,h:(bh / bw) * a.w};
+        else if(a.h)return {w:bw / bh * a.h,h:a.h};
+        return {w:bw,h:bh};
+    },
+
+    getPix:function(a,b){
+        return parseFloat(a)*(/w$/.test(a)&&Q.app.width*.01||/h$/.test(a)&&Q.app.height*.01||/d$/.test(a)&&b||devicePixelRatio||1);
+    },
+
+    qset:function( ops, isfunc, exc )
+    {
+
+        ops = ops||{};
+        var isCV = Object.prototype.toString.call(ops.cover)==='[object Object]';
+
+        if(Object.prototype.toString.call(exc)!=='[object Array]')exc=[];
+
+        if(isCV)exc.push('cover');
+
+        for(var i in ops){
+            if(exc.indexOf(i)!=-1)continue;
+            if(this[i]!==undefined&&typeof this[i]!=='function')this[i]=ops[i];
+        }
+
+        if(isCV)for(var i in ops.cover)this[i]=ops.cover[i];
+
+        if(isfunc!==false)for(var i in ops){
+            if(exc.indexOf(i)!=-1)continue;
+            if(typeof this[i]==='function')this[i](ops[i]);
+        }
+
+        return this;
     },
 
     /**

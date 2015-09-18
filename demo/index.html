@@ -13,55 +13,183 @@
 
 Q('App',{
     resources:[
-        {name:'im1',url:'res/1.jpg'}
+        {name:'p1',url:'res/1.jpg'},
+        {name:'p2',url:'res/2.jpg'},
+        {name:'p3',url:'res/3.jpg'},
+        {name:'p4',url:'res/4.jpg'}
     ],
 
     launch:[
-        {name:'im2',url:'res/2.jpg'}
+        {name:'p5',url:'res/5.jpg'}
     ],
 
     listeners:{
         progress:function(a,b){
-            // console.log(a,b)
+            // console.log(a.progress)
         },
         init:function(){
 
 
+            var touch = null;
+
+
             var pa = Q('Panel',{
 
-                // background:0xaabbcc,
-                width:Q.app.width,
-                height:Q.app.height,
+                background:0xaabbcc,
+                width:'100w',
+                height:'100w',
 
-                items:[{
-                    xtype:'Image',
-                    texture:Q.app.getRes('im2').texture,
-                    width:Q.app.width*.5,
-                    height:Q.app.height*.5
-                }]
+                items:[
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'40w'},
+                        layout:2
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'40w'},
+                        layout:2
+
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'40w'},
+                        layout:2
+
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'40w'},
+                        layout:2,
+                        listener:{
+                            touchstart:function(){
+                                console.log(1)
+                            }
+                        }
+                    }
+                ],
+                listener:{
+                    touchstart:function(){
+                        
+                    },
+                    touchmove:function(e){
+                        this.container.y += e.delay.y;
+                        var ra =  this.container.getBounds();
+                        if(this.container.y>0)this.container.y=0;
+                        if(this.container.y<this.height-ra.height)this.container.y=this.height-ra.height;
+
+                        this.tiao.y = -this.container.y ;/// (this.height-ra.height)*(this.height-ra.height);
+                    }
+                }
             });
 
-            pa.mask = new Q.gRect({
-                x:0,
-                y:0,
-                width:200,
-                height:200
+
+
+
+            b(pa,pa.container.children,[0,0,0,0],{
+                space:10,
+                direction:'start'
             });
 
-            console.log(pa);
+            var bou = pa.container.getLocalBounds();
 
+var re = new Q.gRoundedRect({
+    x:pa.width-25,
+    radius:10,
+    width:20,
+    height: (bou.height - pa.height) / bou.height * pa.height-20,
+    color:0x000000,
+    fillAlpha:0.6
+});
+
+re.x = pa.width-25;
+
+pa.tiao = re;
+
+console.log(re);
+            pa.addChild(re);
+
+
+
+
+            // console.log(pa.container.getBounds())
+
+
+            // console.log(pa.container,pa.container.children)
+              /**
+             * 实现功能：对objs内的元素根据参数实现纵向排列
+             * 需要改变objs每个元素的xy
+             * 
+             * rect obj {x,y,width,height}     rect 有4个属性 x,y,width,height
+             * objs [obj]  {x,y,width,height} objs是个数组，每个元素有x,y,width,height属性
+             * aabb [number,number,number,number]  aabb 是个数组，代表padding，内边距。固定有4个元素，是上、右、下、左 的内边距
+             * ops obj{space，direction}   
+             *      space 是间隙，2个元素之间的间隙，如果没有则为0；
+             *      direction，是方向，是字符串，可能是start 或者 end,代表从开始排列，还是结束排列
+             */
+            function b(rect,objs,aabb,ops){
+
+                var l=objs.length;
+                var ty=rect.y+aabb[0];
+                var sy=0;
+                if(ops.direction=='start'){
+                   for(var i=0;i<l;i++){
+                        if(objs[i].layout==1)continue;
+                        objs[i].y=ty+ops.space*i+sy;
+                        sy=sy+objs[i].height;
+                        console.log(sy)
+                    } 
+                }else if(ops.direction=='end'){
+                     for(var i=l-1;i>-1;i--){
+                        objs[i].y=ty+ops.space*(l-i-1)+sy;
+                        sy=sy+objs[i].height;
+
+                    } 
+                }
+            }
+
+            // var ab = pa.findByName('ab');
+
+            // console.log(
+            //     pa.getLocalBounds());
+
+            // pa.cacheAsBitmap = !pa.cacheAsBitmap;
+
+            // Q.tween({
+            //     obj:ab,
+            //     to:{ angle:360},
+            //     inverse:true,
+            //     repeat:-1,
+            //     time:1000
+            // });
+
+            //  Q.tween({
+            //     obj:pa,
+            //     to:{ y:500},
+            //     inverse:true,
+            //     repeat:-1,
+            //     time:5000
+            // });
+    
          
-           
+
             this.container.addChild(pa);
+            // this.container.addChild(pa.mask);
 
         },
         launch:function(){
 
-            // var im =  Q('Image',{
-            //     texture:Q.app.getRes('im1').texture,
-            //     width:Q.app.width,
-            //     height:Q.app.height
-            // });
+            var im =  Q('Image',{
+                texture:Q.app.getRes('p1').texture,
+                width:Q.app.width,
+                height:Q.app.height
+            });
+
+            im.anchor.x = 0.5;
 
             // Q.tween({
             //     obj:im,

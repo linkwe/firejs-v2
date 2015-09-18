@@ -62,6 +62,42 @@ var utils = module.exports = {
         return ((rgb[0]*255 << 16) + (rgb[1]*255 << 8) + rgb[2]*255);
     },
 
+    usRatio:function(a,b){
+        var bw = b.width , bh = b.height;
+        if(a.w)return {w:a.w,h:(bh / bw) * a.w};
+        else if(a.h)return {w:bw / bh * a.h,h:a.h};
+        return {w:bw,h:bh};
+    },
+
+    getPix:function(a,b){
+        return parseFloat(a)*(/w$/.test(a)&&Q.app.width*.01||/h$/.test(a)&&Q.app.height*.01||/d$/.test(a)&&b||devicePixelRatio||1);
+    },
+
+    qset:function( ops, isfunc, exc )
+    {
+
+        ops = ops||{};
+        var isCV = Object.prototype.toString.call(ops.cover)==='[object Object]';
+
+        if(Object.prototype.toString.call(exc)!=='[object Array]')exc=[];
+
+        if(isCV)exc.push('cover');
+
+        for(var i in ops){
+            if(exc.indexOf(i)!=-1)continue;
+            if(this[i]!==undefined&&typeof this[i]!=='function')this[i]=ops[i];
+        }
+
+        if(isCV)for(var i in ops.cover)this[i]=ops.cover[i];
+
+        if(isfunc!==false)for(var i in ops){
+            if(exc.indexOf(i)!=-1)continue;
+            if(typeof this[i]==='function')this[i](ops[i]);
+        }
+
+        return this;
+    },
+
     /**
      * Checks whether the Canvas BlendModes are supported by the current browser
      *

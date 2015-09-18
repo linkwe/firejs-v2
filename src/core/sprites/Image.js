@@ -116,6 +116,28 @@ Image_.prototype.constructor = Image_;
 module.exports = Image_;
 
 Object.defineProperties(Image_.prototype, {
+
+    anchorX: {
+        get: function ()
+        {
+            return this.anchor.x;
+        },
+        set: function (value)
+        {
+            this.anchor.x = value;
+        }
+    },
+
+    anchorY: {
+        get: function ()
+        {
+            return this.anchor.y;
+        },
+        set: function (value)
+        {
+            this.anchor.y = value;
+        }
+    },
     /**
      * The width of the sprite, setting this will actually modify the scale to achieve the value set
      *
@@ -239,6 +261,23 @@ Image_.prototype._onTextureUpdate = function ()
     {
         this.scale.y = this._height / this.texture.frame.height;
     }
+};
+
+/**
+ * When the texture is updated, this event will fire to update the scale and frame
+ *
+ * @private
+ */
+Image_.prototype.auto = function(a){
+    console.log('auto');
+    if(a.w && typeof a.w === 'string')
+        a.w = utils.getPix(a.w);
+    if(a.h && typeof a.h === 'string')
+        a.h = utils.getPix(a.h);
+    var wh = utils.usRatio(a,this._texture.baseTexture.source);
+    this.width = wh.w;
+    this.height = wh.h;
+    return this;
 };
 
 /**

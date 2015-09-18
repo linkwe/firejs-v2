@@ -11,8 +11,7 @@ function InteractionData()
     this.global = new core.Point();
 
 
-    this.start = new core.Point();
-
+    this.delay = new core.Point();
     /**
      * The target Sprite that was interacted with
      *
@@ -386,6 +385,7 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
     var rect = this.interactionDOMElement.getBoundingClientRect();
     point.x = ( ( x - rect.left ) * (this.interactionDOMElement.width  / rect.width  ) ) / this.resolution;
     point.y = ( ( y - rect.top  ) * (this.interactionDOMElement.height / rect.height ) ) / this.resolution;
+
 };
 
 /**
@@ -401,6 +401,8 @@ InteractionManager.prototype.mapPositionToPoint = function ( point, x, y )
 InteractionManager.prototype.processInteractive = function ( evdate, evname)
 {
     evdate.type = evname;
+
+    // console.log(this.renderer._lastObjectRendered.name);
     this.renderer._lastObjectRendered.interaction(evname,evdate);
 };
 
@@ -490,7 +492,6 @@ InteractionManager.prototype.onMouseMove = function (event)
         this.interactionDOMElement.style.cursor = this.cursor;
     }
 
-    //TODO BUG for parents ineractive object (border order issue)
 };
 
 
@@ -504,15 +505,12 @@ InteractionManager.prototype.onMouseMove = function (event)
 InteractionManager.prototype.onMouseOut = function (event)
 {
     this.eventData.originalEvent = event;
+
     this.eventData.stopped = false;
 
-    // Update internal mouse reference
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
     this.interactionDOMElement.style.cursor = 'inherit';
-
-    // TODO optimize by not check EVERY TIME! maybe half as often? //
-    this.mapPositionToPoint( this.mouse.global, event.clientX, event.clientY );
 
     this.processInteractive( this.eventData, 'mouseout' );
 };
@@ -564,24 +562,39 @@ InteractionManager.prototype.onTouchStart = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length, _x, _y;
+    var cLength = changedTouches.length, touchEvent, touchData;
 
-    for (var i=0; i < cLength; i++)
-    {
+    this.eventData.delay.x = this.eventData.delay.y = 0 ;
 
-        var touchEvent = changedTouches[i];
+    if(cLength==1){
 
-        var touchData = this.getTouchData( touchEvent );
+        touchEvent = changedTouches[0];
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        this.eventData.originalEvent = event;
 
-        touchEvent.startX = touchEvent.globalX;
-        touchEvent.startY = touchEvent.globalY;
+        this.eventData.stopped = false;
 
-        this.processInteractive( touchData, 'touchstart');
+        this.mapPositionToPoint( this.eventData.global, touchEvent.clientX, touchEvent.clientY);
 
-        this.returnTouchData( touchData );
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchstart' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchstart');
+
+            this.returnTouchData( touchData );
+        }
     }
 };
 
@@ -599,27 +612,43 @@ InteractionManager.prototype.onTouchEnd = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length , _x , _y;
+    var cLength = changedTouches.length, touchEvent, touchData;
+    var cLength = changedTouches.length, touchEvent, touchData;
 
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
+    this.eventData.delay.x = this.eventData.delay.y = 0 ;
 
-        var touchData = this.getTouchData( touchEvent );
+    if(cLength==1){
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        touchEvent = changedTouches[0];
 
-        this.processInteractive( touchData, 'touchend' );
+        this.eventData.originalEvent = event;
 
-        _x = touchEvent.globalX - touchEvent.startX ;
-        _y = touchEvent.globalY - touchEvent.startY ;
+        this.eventData.stopped = false;
 
-        if(  Math.pow(_x*_x+_y*_y,.5) < this.rocuo)
-        this.processInteractive( touchData, 'tap' );
+        this.mapPositionToPoint( this.eventData.global, touchEvent.clientX, touchEvent.clientY);
 
-        this.returnTouchData( touchData );
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchstart' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchstart');
+
+            this.returnTouchData( touchData );
+        }
     }
+   
 };
 
 
@@ -638,21 +667,48 @@ InteractionManager.prototype.onTouchMove = function (event)
     }
 
     var changedTouches = event.changedTouches;
-    var cLength = changedTouches.length;
+    var cLength = changedTouches.length, touchEvent, touchData ;
 
-    for (var i=0; i < cLength; i++)
-    {
-        var touchEvent = changedTouches[i];
+    if(cLength==1){
 
-        var touchData = this.getTouchData( touchEvent );
+        touchEvent = changedTouches[0];
 
-        touchData.originalEvent = event;
-        touchData.stopped = false;
+        this.eventData.originalEvent = event;
 
-        this.processInteractive( touchData, 'touchmove' );
+        this.eventData.stopped = false;
 
-        this.returnTouchData( touchData );
+        this.mapPositionToPoint( this._tempPoint, touchEvent.clientX, touchEvent.clientY );
+
+        this.eventData.delay.x = this._tempPoint.x - this.eventData.global.x;
+
+        this.eventData.delay.y = this._tempPoint.y - this.eventData.global.y;
+
+        this.eventData.global.x = this._tempPoint.x ;
+
+        this.eventData.global.y = this._tempPoint.y ;
+
+        this.interactionDOMElement.style.cursor = 'inherit';
+
+        this.processInteractive( this.eventData, 'touchmove' );
+
+    }else{
+
+        for (var i=0; i < cLength; i++) {
+
+            touchEvent = changedTouches[i];
+
+            touchData = this.getTouchData( touchEvent );
+
+            touchData.originalEvent = event;
+            touchData.stopped = false;
+
+            this.processInteractive( touchData, 'touchmove');
+
+            this.returnTouchData( touchData );
+        }
     }
+
+   
 };
 
 

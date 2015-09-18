@@ -54,6 +54,8 @@ function Application(ops){
 
     container.addChild(this.GUI) ;
 
+    container.name = 'main';
+
     this.container = container;
 
     this.autoRender = true;

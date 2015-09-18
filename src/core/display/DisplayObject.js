@@ -2,6 +2,7 @@ var math = require('../math'),
     RenderTexture = require('../textures/RenderTexture'),
     EventEmitter = require('eventemitter3'),
     CONST = require('../const'),
+    utils = require('../utils'),
     _tempMatrix = new math.Matrix();
 
 /**
@@ -143,6 +144,9 @@ DisplayObject.prototype = Object.create(EventEmitter.prototype);
 
 
 Object.assign(DisplayObject.prototype,{
+    layout:1,
+
+    name:'none',
      /**
      * The original, cached mask of the object
      *
@@ -221,6 +225,9 @@ Object.defineProperties(DisplayObject.prototype, {
         },
         set: function (value)
         {
+            if(typeof value === 'string')
+            value = utils.getPix(value);
+
             this.position.x = value;
         }
     },
@@ -238,6 +245,9 @@ Object.defineProperties(DisplayObject.prototype, {
         },
         set: function (value)
         {
+            if(typeof value === 'string')
+            value = utils.getPix(value);
+
             this.position.y = value;
         }
     },
@@ -315,17 +325,9 @@ Object.defineProperties(DisplayObject.prototype, {
         }
     },
 
-    interaction:{value:function( name, evDate, hit ){
+   
 
-        if( !this.enabled || evDate.stopped ) return ;
-        this.containsPoint( evDate.global )&&this.emit( name, evDate );
-
-    }},
-
-    containsPoint:{value:function(point){ /** TODO:*/ }},
-
-    enabled:{value:true},
-
+  
     scaleX: {
         
         get: function ()
@@ -348,20 +350,36 @@ Object.defineProperties(DisplayObject.prototype, {
         }
     },
 
+
+
     angle: {
         get: function ()
         {
-            return this.rotation / core.DEG_TO_RAD;
+            return this.rotation / CONST.DEG_TO_RAD;
         },
         set: function (value)
         {
             this.rotation = 
-            value * core.DEG_TO_RAD ;
+            value * CONST.DEG_TO_RAD ;
         }
     }
 
 });
 
+
+DisplayObject.prototype.interaction = function( name, evDate, hit ){
+
+    if( !this.enabled || evDate.stopped ) return ;
+    this.containsPoint( evDate.global )&&this.emit( name, evDate );
+
+};
+
+DisplayObject.prototype.containsPoint = function( ){
+
+
+};
+
+  
 /*
  * Updates the object transform for rendering
  *
