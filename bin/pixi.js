@@ -5652,7 +5652,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
         this.interactionDOMElement.style.cursor = 'inherit';
 
-        this.processInteractive( this.eventData, 'touchstart' );
+        this.processInteractive( this.eventData, 'touchend' );
 
     }else{
 
@@ -5666,7 +5666,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
             touchData.stopped = false;
 
-            this.processInteractive( touchData, 'touchstart');
+            this.processInteractive( touchData, 'touchend');
 
             this.returnTouchData( touchData );
         }
@@ -5701,7 +5701,6 @@ InteractionManager.prototype.onTouchMove = function (event)
         this.eventData.stopped = false;
 
         this.mapPositionToPoint( this._tempPoint, touchEvent.clientX, touchEvent.clientY );
-
 
         this.eventData.delay.x = this._tempPoint.x - this.eventData.global.x;
 
@@ -8296,23 +8295,7 @@ Container.prototype.addChild = function (child)
         }
     }
     child.parent = this;
-    return child;
-};
-
-Container.prototype.addChild = function (child)
-{
-    if(this.children.length<1){
-        this.children.push(child);
-    }else{
-        for(var i=this.children.length-1;0<=i;i--){
-            if(this.children[i].depth<=child.depth){
-                this.children.splice(i+1,0,child);break;
-            }else{
-                if(i==0)this.children.unshift(child);
-            }
-        }
-    }
-    child.parent = this;
+    child.emit('added', this);
     return child;
 };
 

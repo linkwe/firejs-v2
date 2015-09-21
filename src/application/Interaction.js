@@ -629,7 +629,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
         this.interactionDOMElement.style.cursor = 'inherit';
 
-        this.processInteractive( this.eventData, 'touchstart' );
+        this.processInteractive( this.eventData, 'touchend' );
 
     }else{
 
@@ -643,7 +643,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
             touchData.stopped = false;
 
-            this.processInteractive( touchData, 'touchstart');
+            this.processInteractive( touchData, 'touchend');
 
             this.returnTouchData( touchData );
         }

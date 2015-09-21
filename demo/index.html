@@ -43,27 +43,45 @@ Q('App',{
                     {
                         xtype:'Image',
                         texture:Q.app.getRes('p1').texture,
-                        auto:{w:'40w'},
+                        auto:{w:'100w'},
                         layout:2
                     },
                     {
                         xtype:'Image',
                         texture:Q.app.getRes('p1').texture,
-                        auto:{w:'40w'},
+                        auto:{w:'100w'},
+                        layout:2
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'100w'},
+                        layout:2
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'100w'},
+                        layout:2
+                    },
+                    {
+                        xtype:'Image',
+                        texture:Q.app.getRes('p1').texture,
+                        auto:{w:'100w'},
                         layout:2
 
                     },
                     {
                         xtype:'Image',
                         texture:Q.app.getRes('p1').texture,
-                        auto:{w:'40w'},
+                        auto:{w:'100w'},
                         layout:2
 
                     },
                     {
                         xtype:'Image',
                         texture:Q.app.getRes('p1').texture,
-                        auto:{w:'40w'},
+                        auto:{w:'100w'},
                         layout:2,
                         listener:{
                             touchstart:function(){
@@ -77,44 +95,147 @@ Q('App',{
                         
                     },
                     touchmove:function(e){
-                        this.container.y += e.delay.y;
-                        var ra =  this.container.getBounds();
-                        if(this.container.y>0)this.container.y=0;
-                        if(this.container.y<this.height-ra.height)this.container.y=this.height-ra.height;
 
-                        this.tiao.y = -this.container.y ;/// (this.height-ra.height)*(this.height-ra.height);
+                        this.hc = false;
+                        
+                        var ra =  this.container.getBounds() ;
+                        if( this.container.y > 0 ||
+                            this.container.y < this.height - ra.height){
+                            this.container.y += e.delay.y*.5;
+                        }else{
+                            this.container.y += e.delay.y;
+                        }
+
+                        this.tiao.y = -this.container.y * this.tiao.re;
+                        this.vy = e.delay.y;
+                    },
+                    touchend:function(e){
+                        if(e.originalEvent.changedTouches.length==1){
+                            this.hc = true;
+                            var ra =  this.container.getBounds() ;
+                            if( this.container.y > 0 ||
+                                this.container.y < this.height - ra.height){
+
+                                if(this.container.y > 0) this.ty = 0;
+                                if(this.container.y < this.height - ra.height) 
+                                    this.ty =  this.height - ra.height;
+                                this.ha = false;
+                            }else{
+
+                                this.ha = true;
+                                var ty = this.container.y+ this.vy*5;
+                                if(ty>0)ty=0;
+                                else if(ty<this.height - ra.height)
+                                ty = this.height - ra.height;
+                                this.ty = ty;
+
+                            }
+
+                            console.log(this.ty);
+                        }
                     }
                 }
             });
 
-
-
-
-            b(pa,pa.container.children,[0,0,0,0],{
+            b(pa,pa.container.children,[10,0,10,0],{
                 space:10,
                 direction:'start'
             });
 
             var bou = pa.container.getLocalBounds();
+            var spring = 0.03,
+            friction = 0.88,
+            vx = 0,
+            vy = 0;
+            var re = new Q.gRoundedRect({
+                radius:5,
+                width:10,
+                height: pa.height/ bou.height * pa.height,
+                color:0x000000,
+                fillAlpha:0.5
+            });
 
-var re = new Q.gRoundedRect({
-    x:pa.width-25,
-    radius:10,
-    width:20,
-    height: (bou.height - pa.height) / bou.height * pa.height-20,
-    color:0x000000,
-    fillAlpha:0.6
-});
-
-re.x = pa.width-25;
+re.x = pa.width-15;
+re.re = pa.height/ bou.height;
 
 pa.tiao = re;
+pa.ty = 0;
+pa.vy = 0;
+pa.hc = false;
+pa.ha = false;
 
-console.log(re);
+
+pa.spring = 0.03;
+pa.friction = 0.88;
+
+
+console.log(pa.height, bou.height);
+
             pa.addChild(re);
+            pa.y = '20w';
+/*
+vx += (targetX - object.x) * spring;
+vy += (targetY - object.y) * spring;
+object.x += (vx *= friction);
+object.y += (vy *= friction);
 
 
+object.x += (targetX - object.x) * easing;
+object.y += (targetY - object.y) * easing;
 
+*/
+
+var easing = 0.1;
+
+Q.ticker.shared.add(function(_){
+
+    //console.log(_)
+
+    if(pa.hc){
+
+
+        // pa.vy = (pa.ty - pa.container.y) * pa.spring ;
+
+
+        if(Math.abs(pa.ty - pa.container.y)<1){
+            pa.container.y = pa.ty;
+            pa.hc = false;
+        }
+
+        pa.container.y += (pa.ty - pa.container.y)*easing;
+        pa.tiao.y = - pa.container.y* pa.tiao.re;
+
+        console.log(1);
+
+        // if(!pa.ha){
+        //     pa.vy += (pa.ty - pa.container.y) * spring ;
+        //     pa.container.y += ( pa.vy *= friction ) ;
+        // }else{
+
+        //     pa.container.y += pa.vy;
+        //     pa.tiao.y = - pa.container.y* pa.tiao.re;
+        //     pa.vy *= 0.9;
+        //     if(Math.abs(pa.vy)<1){
+        //         pa.hc=false;
+        //         pa.vy=0;
+        //     }
+           
+        // }
+        
+
+
+        // console.log(pa.vy);
+
+
+        // pa.container.y += pa.tiao.vy;    
+        // pa.tiao.y = - pa.container.y* pa.tiao.re;
+        // pa.tiao.vy *= 0.9;
+        // if(Math.abs(pa.tiao.vy)<1){
+        //     pa.tiao.hc=false;
+        //     pa.tiao.vy=0;
+        // }
+    }
+});
 
             // console.log(pa.container.getBounds())
 
@@ -190,20 +311,6 @@ console.log(re);
             });
 
             im.anchor.x = 0.5;
-
-            // Q.tween({
-            //     obj:im,
-            //     to:{ x:100 },
-            //     inverse:true,
-            //     repeat:2,
-            //     time:1000
-            // });
-
-
-
-
-            // this.container.addChild(im);
-            
         }
     }
 });
