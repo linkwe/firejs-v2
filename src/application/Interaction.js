@@ -550,7 +550,6 @@ InteractionManager.prototype.processMouseOverOut = function ( displayObject, hit
 
 /**
  * Is called when a touch is started on the renderer element
- *
  * @param event {Event} The DOM event of a touch starting on the renderer view
  * @private
  */
@@ -613,10 +612,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData;
-    var cLength = changedTouches.length, touchEvent, touchData;
-
-    this.eventData.delay.x = this.eventData.delay.y = 0 ;
-
+   
     if(cLength==1){
 
         touchEvent = changedTouches[0];

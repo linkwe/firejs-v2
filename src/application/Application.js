@@ -84,6 +84,9 @@ Application.prototype._initApplication = function(ops){
 
 
 Application.prototype.go = function(name){
+
+
+    
     
 };
 

@@ -145,7 +145,6 @@ DisplayObject.prototype = Object.create(EventEmitter.prototype);
 
 Object.assign(DisplayObject.prototype,{
     layout:1,
-
     name:'none',
      /**
      * The original, cached mask of the object
@@ -209,7 +208,18 @@ Object.assign(DisplayObject.prototype,{
 
 
 DisplayObject.prototype.constructor = DisplayObject;
+
 module.exports = DisplayObject;
+
+DisplayObject.prototype.on = function(){
+
+
+
+
+    
+};
+
+
 
 Object.defineProperties(DisplayObject.prototype, {
     /**

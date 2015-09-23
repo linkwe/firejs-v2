@@ -5636,10 +5636,7 @@ InteractionManager.prototype.onTouchEnd = function (event)
 
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData;
-    var cLength = changedTouches.length, touchEvent, touchData;
-
-    this.eventData.delay.x = this.eventData.delay.y = 0 ;
-
+   
     if(cLength==1){
 
         touchEvent = changedTouches[0];

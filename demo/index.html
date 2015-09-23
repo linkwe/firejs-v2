@@ -169,6 +169,26 @@ pa.spring = 0.03;
 pa.friction = 0.88;
 
 
+
+function A()
+{
+    // if(this instanceof A)
+    console.log(this instanceof arguments.callee);
+    // console.log(arguments.callee);
+}
+
+function B(){
+    A.call(this);
+}
+
+B.prototype = Object.create(A.prototype);
+B.prototype.constructor = B;
+
+new B();
+new A();
+
+
+
 console.log(pa.height, bou.height);
 
             pa.addChild(re);
@@ -262,7 +282,7 @@ Q.ticker.shared.add(function(_){
                         if(objs[i].layout==1)continue;
                         objs[i].y=ty+ops.space*i+sy;
                         sy=sy+objs[i].height;
-                        console.log(sy)
+                        // console.log(sy)
                     } 
                 }else if(ops.direction=='end'){
                      for(var i=l-1;i>-1;i--){
