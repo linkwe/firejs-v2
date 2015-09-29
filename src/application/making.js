@@ -13,6 +13,9 @@ factory.bindClass('Image',core.Image,function(c,ops){
 
 },factory.TYPE_FAC);
 
+
 factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
 factory.bindClass('Panel',require('./Panel'),null,factory.TYPE_CON);
+
+factory.bindClass('Rect',core.gRect,null,factory.TYPE_CON);

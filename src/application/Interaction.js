@@ -12,6 +12,8 @@ function InteractionData()
 
 
     this.delay = new core.Point();
+
+    this.start = new core.Point();
     /**
      * The target Sprite that was interacted with
      *
@@ -142,6 +144,15 @@ function InteractionManager(renderer, options)
      */
     this.eventsAdded = false;
 
+
+    /**
+     * 触摸是否活动
+     *
+     * @member {boolean}
+     * @private
+     */
+    this.active = false;
+
     //this will make it so that you don't have to call bind all the time
 
     /**
@@ -251,7 +262,7 @@ InteractionManager.prototype.addEvents = function ()
         return;
     }
 
-    // core.ticker.shared.add(this.update, this);
+    core.ticker.shared.add(this.update, this);
 
     if (window.navigator.msPointerEnabled)
     {
@@ -336,15 +347,30 @@ InteractionManager.prototype.update = function (deltaTime)
         return;
     }
 
+
+
+    if(this.active&&this.eventData.originalEvent.changedTouches==0){
+
+        this.active = false;
+        
+    }
+
+
+    if(!this.touchended){
+
+        this.active = false;
+        return ;
+    }
+
     this.cursor = 'inherit';
 
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, true );
+    this.renderer._lastObjectRendered.interaction('eventend',this.eventData);
 
-    if (this.currentCursorStyle !== this.cursor)
-    {
-        this.currentCursorStyle = this.cursor;
-        this.interactionDOMElement.style.cursor = this.cursor;
-    }
+    // if (this.currentCursorStyle !== this.cursor)
+    // {
+    //     this.currentCursorStyle = this.cursor;
+    //     this.interactionDOMElement.style.cursor = this.cursor;
+    // }
 
     //TODO
 };
@@ -417,11 +443,18 @@ InteractionManager.prototype.processInteractive = function ( evdate, evname)
  */
 InteractionManager.prototype.onMouseDown = function (event)
 {
+
+    this.active = true;
+
     this.eventData.originalEvent = event;
     this.eventData.stopped = false;
 
+    console.log(event)
+
     // Update internal mouse reference
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    console.log(this.eventData);
 
     this.eventData.start.x  = this.eventData.global.x;
     this.eventData.start.y  = this.eventData.global.y;
@@ -477,6 +510,7 @@ InteractionManager.prototype.onMouseMove = function (event)
 {
     this.eventData.originalEvent = event;
     this.eventData.stopped = false;
+    this.active = true;
 
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
@@ -511,6 +545,10 @@ InteractionManager.prototype.onMouseOut = function (event)
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
     this.interactionDOMElement.style.cursor = 'inherit';
+
+    this.active = false;
+
+    // Q.emit('eventend',this.eventData);
 
     this.processInteractive( this.eventData, 'mouseout' );
 };
@@ -560,6 +598,7 @@ InteractionManager.prototype.onTouchStart = function (event)
         event.preventDefault();
     }
 
+    this.active = true;
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData;
 
@@ -661,6 +700,7 @@ InteractionManager.prototype.onTouchMove = function (event)
     {
         event.preventDefault();
     }
+    this.active = true;
 
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData ;

@@ -1,5 +1,6 @@
 var core = require('../core'),
 factory = require('./factory');
+Panel = require('./Panel');
 
 
 function View(ops){
@@ -12,19 +13,14 @@ function View(ops){
 
     this._background = null ;
 
-
-
     if(a.name){ g.viewsCache[a.name] = this };
-    /**
-     * hbox
-     * vbox
-     * grid
-     * none
-     */
+
 }
 
 View.prototype = Object.create(Panel.prototype);
+
 View.prototype.constructor = View;
+
 module.exports = View;
 
 Object.defineProperties(Panel.prototype, {

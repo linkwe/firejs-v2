@@ -211,9 +211,14 @@ DisplayObject.prototype.constructor = DisplayObject;
 
 module.exports = DisplayObject;
 
-DisplayObject.prototype.on = function(){
+DisplayObject.prototype.on = function(event, fn ){
 
+    if(event === 'eventend'){
+        return EventEmitter.prototype.on.call(Q,'eventend', fn, this);
+    }
 
+    return EventEmitter.prototype.on.call(this,event, fn);
+    //else if(event === '')
 
 
     

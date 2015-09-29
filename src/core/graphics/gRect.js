@@ -15,7 +15,6 @@ function gRect(ops){
 
 }
 
-
 gRect.prototype = Object.create(Graphics.prototype);
 gRect.prototype.constructor = gRect;
 module.exports = gRect;

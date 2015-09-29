@@ -4720,6 +4720,9 @@ Application.prototype._initApplication = function(ops){
 
 
 Application.prototype.go = function(name){
+
+
+    
     
 };
 
@@ -4969,7 +4972,7 @@ var App = _class({
 */
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"../core":44,"../loaders":132,"./tween":30,"eventemitter3":9}],19:[function(require,module,exports){
+},{"../core":43,"../loaders":131,"./tween":29,"eventemitter3":9}],19:[function(require,module,exports){
 var utils = require('../core').utils;
 
 
@@ -5020,7 +5023,7 @@ Controller.prototype._init = function(){
 
 };
 
-},{"../core":44}],20:[function(require,module,exports){
+},{"../core":43}],20:[function(require,module,exports){
 var core = require('../core');
 
 
@@ -5035,6 +5038,8 @@ function InteractionData()
 
 
     this.delay = new core.Point();
+
+    this.start = new core.Point();
     /**
      * The target Sprite that was interacted with
      *
@@ -5165,6 +5170,15 @@ function InteractionManager(renderer, options)
      */
     this.eventsAdded = false;
 
+
+    /**
+     * 触摸是否活动
+     *
+     * @member {boolean}
+     * @private
+     */
+    this.active = false;
+
     //this will make it so that you don't have to call bind all the time
 
     /**
@@ -5274,7 +5288,7 @@ InteractionManager.prototype.addEvents = function ()
         return;
     }
 
-    // core.ticker.shared.add(this.update, this);
+    core.ticker.shared.add(this.update, this);
 
     if (window.navigator.msPointerEnabled)
     {
@@ -5359,15 +5373,30 @@ InteractionManager.prototype.update = function (deltaTime)
         return;
     }
 
+
+
+    if(this.active&&this.eventData.originalEvent.changedTouches==0){
+
+        this.active = false;
+        
+    }
+
+
+    if(!this.touchended){
+
+        this.active = false;
+        return ;
+    }
+
     this.cursor = 'inherit';
 
-    this.processInteractive(this.mouse.global, this.renderer._lastObjectRendered, this.processMouseOverOut, true );
+    this.renderer._lastObjectRendered.interaction('eventend',this.eventData);
 
-    if (this.currentCursorStyle !== this.cursor)
-    {
-        this.currentCursorStyle = this.cursor;
-        this.interactionDOMElement.style.cursor = this.cursor;
-    }
+    // if (this.currentCursorStyle !== this.cursor)
+    // {
+    //     this.currentCursorStyle = this.cursor;
+    //     this.interactionDOMElement.style.cursor = this.cursor;
+    // }
 
     //TODO
 };
@@ -5440,11 +5469,18 @@ InteractionManager.prototype.processInteractive = function ( evdate, evname)
  */
 InteractionManager.prototype.onMouseDown = function (event)
 {
+
+    this.active = true;
+
     this.eventData.originalEvent = event;
     this.eventData.stopped = false;
 
+    console.log(event)
+
     // Update internal mouse reference
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
+
+    console.log(this.eventData);
 
     this.eventData.start.x  = this.eventData.global.x;
     this.eventData.start.y  = this.eventData.global.y;
@@ -5500,6 +5536,7 @@ InteractionManager.prototype.onMouseMove = function (event)
 {
     this.eventData.originalEvent = event;
     this.eventData.stopped = false;
+    this.active = true;
 
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
@@ -5534,6 +5571,10 @@ InteractionManager.prototype.onMouseOut = function (event)
     this.mapPositionToPoint( this.eventData.global, event.clientX, event.clientY);
 
     this.interactionDOMElement.style.cursor = 'inherit';
+
+    this.active = false;
+
+    // Q.emit('eventend',this.eventData);
 
     this.processInteractive( this.eventData, 'mouseout' );
 };
@@ -5573,7 +5614,6 @@ InteractionManager.prototype.processMouseOverOut = function ( displayObject, hit
 
 /**
  * Is called when a touch is started on the renderer element
- *
  * @param event {Event} The DOM event of a touch starting on the renderer view
  * @private
  */
@@ -5584,6 +5624,7 @@ InteractionManager.prototype.onTouchStart = function (event)
         event.preventDefault();
     }
 
+    this.active = true;
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData;
 
@@ -5685,6 +5726,7 @@ InteractionManager.prototype.onTouchMove = function (event)
     {
         event.preventDefault();
     }
+    this.active = true;
 
     var changedTouches = event.changedTouches;
     var cLength = changedTouches.length, touchEvent, touchData ;
@@ -5831,7 +5873,7 @@ InteractionManager.prototype.destroy = function () {
 core.WebGLRenderer.registerPlugin('interaction', InteractionManager);
 core.CanvasRenderer.registerPlugin('interaction', InteractionManager);
 
-},{"../core":44}],21:[function(require,module,exports){
+},{"../core":43}],21:[function(require,module,exports){
 var core = require('../core');
 
 function Layout(){
@@ -5878,7 +5920,7 @@ Layout.TYPE = {
 
 
 
-},{"../core":44}],22:[function(require,module,exports){
+},{"../core":43}],22:[function(require,module,exports){
 var core = require('../core'),
 factory = require('./factory');
 
@@ -6167,7 +6209,7 @@ Object.defineProperties(Panel.prototype, {
         }
     }
 });
-},{"../core":44,"./factory":26}],23:[function(require,module,exports){
+},{"../core":43,"./factory":25}],23:[function(require,module,exports){
 var core = require('../core'),
     tween = require('./tween');
 
@@ -6271,42 +6313,7 @@ Transitions.prototype.switch = function(ops){
 
 core.WebGLRenderer.registerPlugin(  'transitions' , Transitions );
 core.CanvasRenderer.registerPlugin( 'transitions' , Transitions );
-},{"../core":44,"./tween":30}],24:[function(require,module,exports){
-var Panel = require('./Panel');
-
-function View(ops){
-
-    Panel.call(this);
-
-    this._width  = ops.width ;
-
-    this._height = ops.height ;
-
-    this.needUpdateLayout = true;
-
-    this.needmask = ops.needmask || false ;
-
-    this._mask = new core.gRect({
-        width:  this._width,
-        height: this._height 
-    });
-
-    this._mask.parent = this;
-
-    this._background = null ;
-
-    /**
-     * hbox
-     * vbox
-     * grid
-     * none
-     */
-}
-
-View.prototype = Object.create(Panel.prototype);
-View.prototype.constructor = View;
-module.exports = View;
-},{"./Panel":22}],25:[function(require,module,exports){
+},{"../core":43,"./tween":29}],24:[function(require,module,exports){
 var utils = require('../core').utils;
 
 var _require = function(){
@@ -6370,7 +6377,7 @@ var _require = function(){
 
 module.exports = _require;
 
-},{"../core":44}],26:[function(require,module,exports){
+},{"../core":43}],25:[function(require,module,exports){
 
 var __class = {};
 var factory = {
@@ -6456,7 +6463,7 @@ function factoryObject( name , ops ){
 
 
 module.exports = factory;
-},{}],27:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 // require('./modify');
 require('./Interaction');
 require('./making');
@@ -6467,7 +6474,7 @@ module.exports = {
     factory:require('./factory'),
     tween:require('./tween'),
     Transitions:require('./Transitions'),
-    View:require('./View'),
+    // View:require('./View'),
     Panel:require('./Panel'),
     Layout:require('./Layout'),
     Controller:require('./Controller'),
@@ -6475,7 +6482,7 @@ module.exports = {
 
 };
 
-},{"./Controller":19,"./Interaction":20,"./Layout":21,"./Panel":22,"./Transitions":23,"./View":24,"./_require":25,"./factory":26,"./making":28,"./requests":29,"./tween":30}],28:[function(require,module,exports){
+},{"./Controller":19,"./Interaction":20,"./Layout":21,"./Panel":22,"./Transitions":23,"./_require":24,"./factory":25,"./making":27,"./requests":28,"./tween":29}],27:[function(require,module,exports){
 var factory = require('./factory'),
     core = require('../core'),
     _tempPoint = new core.Point();
@@ -6491,11 +6498,14 @@ factory.bindClass('Image',core.Image,function(c,ops){
 
 },factory.TYPE_FAC);
 
+
 factory.bindClass('App',require('./Application'),null,factory.TYPE_CON);
 
 factory.bindClass('Panel',require('./Panel'),null,factory.TYPE_CON);
 
-},{"../core":44,"./Application":18,"./Panel":22,"./factory":26}],29:[function(require,module,exports){
+factory.bindClass('Rect',core.gRect,null,factory.TYPE_CON);
+
+},{"../core":43,"./Application":18,"./Panel":22,"./factory":25}],28:[function(require,module,exports){
 !function (name, context, definition) {
  module.exports = definition();
 }('req', this, function () {
@@ -7279,7 +7289,7 @@ complete A function called whether the request is a success or failure. Always c
 jsonpCallback Specify the callback function name for a JSONP request. This value will be used instead of the random (but recommended) name automatically generated by reqwest.
 
  */
-},{}],30:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 
 module.exports = Tween ;
 
@@ -7926,7 +7936,7 @@ Object.assign(Tween,{
 
     }
 });
-},{}],31:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 /**
  * Constant values used in pixi
  *
@@ -8148,7 +8158,7 @@ var CONST = {
 
 module.exports = CONST;
 
-},{"../../package.json":17}],32:[function(require,module,exports){
+},{"../../package.json":17}],31:[function(require,module,exports){
 var math = require('../math'),
     DisplayObject = require('./DisplayObject'),
     RenderTexture = require('../textures/RenderTexture'),
@@ -8780,7 +8790,7 @@ Container.prototype.destroy = function (destroyChildren)
     this.children = null;
 };
 
-},{"../math":47,"../textures/RenderTexture":86,"./DisplayObject":33}],33:[function(require,module,exports){
+},{"../math":46,"../textures/RenderTexture":85,"./DisplayObject":32}],32:[function(require,module,exports){
 var math = require('../math'),
     RenderTexture = require('../textures/RenderTexture'),
     EventEmitter = require('eventemitter3'),
@@ -8928,7 +8938,6 @@ DisplayObject.prototype = Object.create(EventEmitter.prototype);
 
 Object.assign(DisplayObject.prototype,{
     layout:1,
-
     name:'none',
      /**
      * The original, cached mask of the object
@@ -8992,7 +9001,23 @@ Object.assign(DisplayObject.prototype,{
 
 
 DisplayObject.prototype.constructor = DisplayObject;
+
 module.exports = DisplayObject;
+
+DisplayObject.prototype.on = function(event, fn ){
+
+    if(event === 'eventend'){
+        return EventEmitter.prototype.on.call(Q,'eventend', fn, this);
+    }
+
+    return EventEmitter.prototype.on.call(this,event, fn);
+    //else if(event === '')
+
+
+    
+};
+
+
 
 Object.defineProperties(DisplayObject.prototype, {
     /**
@@ -9368,7 +9393,7 @@ DisplayObject.prototype.destroy = function ()
     
 };
 
-},{"../const":31,"../math":47,"../textures/RenderTexture":86,"../utils":92,"eventemitter3":9}],34:[function(require,module,exports){
+},{"../const":30,"../math":46,"../textures/RenderTexture":85,"../utils":91,"eventemitter3":9}],33:[function(require,module,exports){
 var Container = require('../display/Container'),
     Texture = require('../textures/Texture'),
     CanvasBuffer = require('../renderers/canvas/utils/CanvasBuffer'),
@@ -10548,7 +10573,7 @@ Graphics.prototype.destroy = function () {
     this._localBounds = null;
 };
 
-},{"../const":31,"../display/Container":32,"../math":47,"../renderers/canvas/utils/CanvasBuffer":59,"../renderers/canvas/utils/CanvasGraphics":60,"../textures/Texture":87,"./GraphicsData":35}],35:[function(require,module,exports){
+},{"../const":30,"../display/Container":31,"../math":46,"../renderers/canvas/utils/CanvasBuffer":58,"../renderers/canvas/utils/CanvasGraphics":59,"../textures/Texture":86,"./GraphicsData":34}],34:[function(require,module,exports){
 /**
  * A GraphicsData object.
  *
@@ -10638,7 +10663,7 @@ GraphicsData.prototype.destroy = function () {
     this.shape = null;
 };
 
-},{}],36:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -10704,7 +10729,7 @@ Object.defineProperties(gCircle.prototype, {
 
 
 
-},{"../math":47,"./gRect":39}],37:[function(require,module,exports){
+},{"../math":46,"./gRect":38}],36:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -10753,7 +10778,7 @@ Object.defineProperties(gEllipse.prototype, {
 
 
 
-},{"../math":47,"./gRect":39}],38:[function(require,module,exports){
+},{"../math":46,"./gRect":38}],37:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math'),
     CONST = require('../const'),
@@ -10917,7 +10942,7 @@ gLine.prototype.drawShape = function (shape)
 
     return data;
 };
-},{"../const":31,"../math":47,"./Graphics":34,"./GraphicsData":35}],39:[function(require,module,exports){
+},{"../const":30,"../math":46,"./Graphics":33,"./GraphicsData":34}],38:[function(require,module,exports){
 var Graphics = require('./Graphics'),
     math = require('../math');
 
@@ -10934,7 +10959,6 @@ function gRect(ops){
     this.initGraphics(ops);
 
 }
-
 
 gRect.prototype = Object.create(Graphics.prototype);
 gRect.prototype.constructor = gRect;
@@ -11065,7 +11089,7 @@ gRect.prototype.clear = function ()
 
     return this;
 };
-},{"../math":47,"./Graphics":34}],40:[function(require,module,exports){
+},{"../math":46,"./Graphics":33}],39:[function(require,module,exports){
 var gRect = require('./gRect'),
     math = require('../math');
 
@@ -11104,7 +11128,7 @@ Object.defineProperties(gRoundedRect.prototype, {
 
 
 
-},{"../math":47,"./gRect":39}],41:[function(require,module,exports){
+},{"../math":46,"./gRect":38}],40:[function(require,module,exports){
 var utils = require('../../utils'),
     math = require('../../math'),
     CONST = require('../../const'),
@@ -12008,7 +12032,7 @@ GraphicsRenderer.prototype.buildPoly = function (graphicsData, webGLData)
     return true;
 };
 
-},{"../../const":31,"../../math":47,"../../renderers/webgl/WebGLRenderer":63,"../../renderers/webgl/utils/ObjectRenderer":77,"../../utils":92,"./WebGLGraphicsData":42,"./earcut":43}],42:[function(require,module,exports){
+},{"../../const":30,"../../math":46,"../../renderers/webgl/WebGLRenderer":62,"../../renderers/webgl/utils/ObjectRenderer":76,"../../utils":91,"./WebGLGraphicsData":41,"./earcut":42}],41:[function(require,module,exports){
 /**
  * An object containing WebGL specific properties to be used by the WebGL renderer
  *
@@ -12126,7 +12150,7 @@ WebGLGraphicsData.prototype.destroy = function () {
     this.glIndices = null;
 };
 
-},{}],43:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 'use strict';
 
 module.exports = earcut;
@@ -12791,7 +12815,7 @@ function Node(i) {
     this.steiner = false;
 }
 
-},{}],44:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI core library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -12891,7 +12915,7 @@ var core = module.exports = Object.assign(require('./const'), require('./math'),
     }
 });
 
-},{"./const":31,"./display/Container":32,"./display/DisplayObject":33,"./graphics/Graphics":34,"./graphics/GraphicsData":35,"./graphics/gCircle":36,"./graphics/gEllipse":37,"./graphics/gLine":38,"./graphics/gRect":39,"./graphics/gRoundedRect":40,"./graphics/webgl/GraphicsRenderer":41,"./math":47,"./particles/ParticleContainer":53,"./particles/webgl/ParticleRenderer":55,"./renderers/canvas/CanvasRenderer":58,"./renderers/canvas/utils/CanvasBuffer":59,"./renderers/canvas/utils/CanvasGraphics":60,"./renderers/webgl/WebGLRenderer":63,"./renderers/webgl/filters/AbstractFilter":64,"./renderers/webgl/filters/FXAAFilter":65,"./renderers/webgl/filters/SpriteMaskFilter":66,"./renderers/webgl/managers/ShaderManager":70,"./renderers/webgl/shaders/Shader":75,"./renderers/webgl/utils/ObjectRenderer":77,"./renderers/webgl/utils/RenderTarget":79,"./sprites/Image":81,"./sprites/Sprite":82,"./sprites/webgl/SpriteRenderer":83,"./text/Text":84,"./textures/BaseTexture":85,"./textures/RenderTexture":86,"./textures/Texture":87,"./textures/TextureUvs":88,"./textures/VideoBaseTexture":89,"./ticker":91,"./utils":92}],45:[function(require,module,exports){
+},{"./const":30,"./display/Container":31,"./display/DisplayObject":32,"./graphics/Graphics":33,"./graphics/GraphicsData":34,"./graphics/gCircle":35,"./graphics/gEllipse":36,"./graphics/gLine":37,"./graphics/gRect":38,"./graphics/gRoundedRect":39,"./graphics/webgl/GraphicsRenderer":40,"./math":46,"./particles/ParticleContainer":52,"./particles/webgl/ParticleRenderer":54,"./renderers/canvas/CanvasRenderer":57,"./renderers/canvas/utils/CanvasBuffer":58,"./renderers/canvas/utils/CanvasGraphics":59,"./renderers/webgl/WebGLRenderer":62,"./renderers/webgl/filters/AbstractFilter":63,"./renderers/webgl/filters/FXAAFilter":64,"./renderers/webgl/filters/SpriteMaskFilter":65,"./renderers/webgl/managers/ShaderManager":69,"./renderers/webgl/shaders/Shader":74,"./renderers/webgl/utils/ObjectRenderer":76,"./renderers/webgl/utils/RenderTarget":78,"./sprites/Image":80,"./sprites/Sprite":81,"./sprites/webgl/SpriteRenderer":82,"./text/Text":83,"./textures/BaseTexture":84,"./textures/RenderTexture":85,"./textures/Texture":86,"./textures/TextureUvs":87,"./textures/VideoBaseTexture":88,"./ticker":90,"./utils":91}],44:[function(require,module,exports){
 var Point = require('./Point');
 
 /**
@@ -13251,7 +13275,7 @@ Matrix.IDENTITY = new Matrix();
  */
 Matrix.TEMP_MATRIX = new Matrix();
 
-},{"./Point":46}],46:[function(require,module,exports){
+},{"./Point":45}],45:[function(require,module,exports){
 /**
  * The Point object represents a location in a two-dimensional coordinate system, where x represents
  * the horizontal axis and y represents the vertical axis.
@@ -13321,7 +13345,7 @@ Point.prototype.set = function (x, y)
     this.y = y || ( (y !== 0) ? this.x : 0 ) ;
 };
 
-},{}],47:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 /**
  * Math classes and utilities mixed into PIXI namespace.
  *
@@ -13343,7 +13367,7 @@ module.exports = {
     RoundedRectangle: require('./shapes/RoundedRectangle')
 };
 
-},{"./Matrix":45,"./Point":46,"./shapes/Circle":48,"./shapes/Ellipse":49,"./shapes/Polygon":50,"./shapes/Rectangle":51,"./shapes/RoundedRectangle":52}],48:[function(require,module,exports){
+},{"./Matrix":44,"./Point":45,"./shapes/Circle":47,"./shapes/Ellipse":48,"./shapes/Polygon":49,"./shapes/Rectangle":50,"./shapes/RoundedRectangle":51}],47:[function(require,module,exports){
 var Rectangle = require('./Rectangle'),
     CONST = require('../../const');
 
@@ -13431,7 +13455,7 @@ Circle.prototype.getBounds = function ()
     return new Rectangle(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
 };
 
-},{"../../const":31,"./Rectangle":51}],49:[function(require,module,exports){
+},{"../../const":30,"./Rectangle":50}],48:[function(require,module,exports){
 var Rectangle = require('./Rectangle'),
     CONST = require('../../const');
 
@@ -13526,7 +13550,7 @@ Ellipse.prototype.getBounds = function ()
     return new Rectangle(this.x - this.width, this.y - this.height, this.width, this.height);
 };
 
-},{"../../const":31,"./Rectangle":51}],50:[function(require,module,exports){
+},{"../../const":30,"./Rectangle":50}],49:[function(require,module,exports){
 var Point = require('../Point'),
     CONST = require('../../const');
 
@@ -13628,7 +13652,7 @@ Polygon.prototype.contains = function (x, y)
     return inside;
 };
 
-},{"../../const":31,"../Point":46}],51:[function(require,module,exports){
+},{"../../const":30,"../Point":45}],50:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -13722,7 +13746,7 @@ Rectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":31}],52:[function(require,module,exports){
+},{"../../const":30}],51:[function(require,module,exports){
 var CONST = require('../../const');
 
 /**
@@ -13814,7 +13838,7 @@ RoundedRectangle.prototype.contains = function (x, y)
     return false;
 };
 
-},{"../../const":31}],53:[function(require,module,exports){
+},{"../../const":30}],52:[function(require,module,exports){
 var Container = require('../display/Container'),
     CONST = require('../const');
 
@@ -14145,7 +14169,7 @@ ParticleContainer.prototype.destroy = function () {
     this._buffers = null;
 };
 
-},{"../const":31,"../display/Container":32}],54:[function(require,module,exports){
+},{"../const":30,"../display/Container":31}],53:[function(require,module,exports){
 
 /**
  * @author Mat Groves
@@ -14358,7 +14382,7 @@ ParticleBuffer.prototype.destroy = function ()
     this.gl.deleteBuffer(this.staticBuffer);
 };
 
-},{}],55:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 var ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     ParticleShader = require('./ParticleShader'),
@@ -14853,7 +14877,7 @@ ParticleRenderer.prototype.destroy = function ()
     this.tempMatrix = null;
 };
 
-},{"../../math":47,"../../renderers/webgl/WebGLRenderer":63,"../../renderers/webgl/utils/ObjectRenderer":77,"./ParticleBuffer":54,"./ParticleShader":56}],56:[function(require,module,exports){
+},{"../../math":46,"../../renderers/webgl/WebGLRenderer":62,"../../renderers/webgl/utils/ObjectRenderer":76,"./ParticleBuffer":53,"./ParticleShader":55}],55:[function(require,module,exports){
 var TextureShader = require('../../renderers/webgl/shaders/TextureShader');
 
 /**
@@ -14931,7 +14955,7 @@ ParticleShader.prototype.constructor = ParticleShader;
 
 module.exports = ParticleShader;
 
-},{"../../renderers/webgl/shaders/TextureShader":76}],57:[function(require,module,exports){
+},{"../../renderers/webgl/shaders/TextureShader":75}],56:[function(require,module,exports){
 var utils = require('../utils'),
     math = require('../math'),
     CONST = require('../const'),
@@ -15173,7 +15197,7 @@ SystemRenderer.prototype.destroy = function (removeView) {
     this._backgroundColorString = null;
 };
 
-},{"../const":31,"../math":47,"../utils":92,"eventemitter3":9}],58:[function(require,module,exports){
+},{"../const":30,"../math":46,"../utils":91,"eventemitter3":9}],57:[function(require,module,exports){
 var SystemRenderer = require('../SystemRenderer'),
     CanvasMaskManager = require('./utils/CanvasMaskManager'),
     utils = require('../../utils'),
@@ -15458,7 +15482,7 @@ CanvasRenderer.prototype._mapBlendModes = function ()
     }
 };
 
-},{"../../const":31,"../../math":47,"../../utils":92,"../SystemRenderer":57,"./utils/CanvasMaskManager":61}],59:[function(require,module,exports){
+},{"../../const":30,"../../math":46,"../../utils":91,"../SystemRenderer":56,"./utils/CanvasMaskManager":60}],58:[function(require,module,exports){
 /**
  * Creates a Canvas element of the given size.
  *
@@ -15558,7 +15582,7 @@ CanvasBuffer.prototype.destroy = function ()
     this.canvas = null;
 };
 
-},{}],60:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 var CONST = require('../../../const');
 
 /**
@@ -15911,7 +15935,7 @@ CanvasGraphics.updateGraphicsTint = function (graphics)
 };
 
 
-},{"../../../const":31}],61:[function(require,module,exports){
+},{"../../../const":30}],60:[function(require,module,exports){
 var CanvasGraphics = require('./CanvasGraphics');
 
 /**
@@ -15973,7 +15997,7 @@ CanvasMaskManager.prototype.popMask = function (renderer)
 
 CanvasMaskManager.prototype.destroy = function () {};
 
-},{"./CanvasGraphics":60}],62:[function(require,module,exports){
+},{"./CanvasGraphics":59}],61:[function(require,module,exports){
 var utils = require('../../../utils');
 
 /**
@@ -16207,7 +16231,7 @@ CanvasTinter.canUseMultiply = utils.canUseNewCanvasBlendModes();
  */
 CanvasTinter.tintMethod = CanvasTinter.canUseMultiply ? CanvasTinter.tintWithMultiply :  CanvasTinter.tintWithPerPixel;
 
-},{"../../../utils":92}],63:[function(require,module,exports){
+},{"../../../utils":91}],62:[function(require,module,exports){
 var SystemRenderer = require('../SystemRenderer'),
     ShaderManager = require('./managers/ShaderManager'),
     MaskManager = require('./managers/MaskManager'),
@@ -16752,7 +16776,7 @@ WebGLRenderer.prototype._mapGlModes = function ()
     }
 };
 
-},{"../../const":31,"../../utils":92,"../SystemRenderer":57,"./filters/FXAAFilter":65,"./managers/BlendModeManager":67,"./managers/FilterManager":68,"./managers/MaskManager":69,"./managers/ShaderManager":70,"./managers/StencilManager":71,"./utils/ObjectRenderer":77,"./utils/RenderTarget":79}],64:[function(require,module,exports){
+},{"../../const":30,"../../utils":91,"../SystemRenderer":56,"./filters/FXAAFilter":64,"./managers/BlendModeManager":66,"./managers/FilterManager":67,"./managers/MaskManager":68,"./managers/ShaderManager":69,"./managers/StencilManager":70,"./utils/ObjectRenderer":76,"./utils/RenderTarget":78}],63:[function(require,module,exports){
 var DefaultShader = require('../shaders/TextureShader');
 
 /**
@@ -16870,7 +16894,7 @@ AbstractFilter.prototype.apply = function (frameBuffer)
 };
 */
 
-},{"../shaders/TextureShader":76}],65:[function(require,module,exports){
+},{"../shaders/TextureShader":75}],64:[function(require,module,exports){
 var AbstractFilter = require('./AbstractFilter');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -16918,7 +16942,7 @@ FXAAFilter.prototype.applyFilter = function (renderer, input, output)
     filterManager.applyFilter(shader, input, output);
 };
 
-},{"./AbstractFilter":64}],66:[function(require,module,exports){
+},{"./AbstractFilter":63}],65:[function(require,module,exports){
 var AbstractFilter = require('./AbstractFilter'),
     math =  require('../../../math');
 
@@ -17015,7 +17039,7 @@ Object.defineProperties(SpriteMaskFilter.prototype, {
     }
 });
 
-},{"../../../math":47,"./AbstractFilter":64}],67:[function(require,module,exports){
+},{"../../../math":46,"./AbstractFilter":63}],66:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager');
 
 /**
@@ -17058,7 +17082,7 @@ BlendModeManager.prototype.setBlendMode = function (blendMode)
     return true;
 };
 
-},{"./WebGLManager":72}],68:[function(require,module,exports){
+},{"./WebGLManager":71}],67:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     RenderTarget = require('../utils/RenderTarget'),
     CONST = require('../../../const'),
@@ -17494,7 +17518,7 @@ FilterManager.prototype.destroy = function ()
     this.texturePool = null;
 };
 
-},{"../../../const":31,"../../../math":47,"../utils/Quad":78,"../utils/RenderTarget":79,"./WebGLManager":72}],69:[function(require,module,exports){
+},{"../../../const":30,"../../../math":46,"../utils/Quad":77,"../utils/RenderTarget":78,"./WebGLManager":71}],68:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     AlphaMaskFilter = require('../filters/SpriteMaskFilter');
 
@@ -17608,7 +17632,7 @@ MaskManager.prototype.popStencilMask = function (target, maskData)
 };
 
 
-},{"../filters/SpriteMaskFilter":66,"./WebGLManager":72}],70:[function(require,module,exports){
+},{"../filters/SpriteMaskFilter":65,"./WebGLManager":71}],69:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     TextureShader = require('../shaders/TextureShader'),
     ComplexPrimitiveShader = require('../shaders/ComplexPrimitiveShader'),
@@ -17775,7 +17799,7 @@ ShaderManager.prototype.destroy = function ()
     this.tempAttribState = null;
 };
 
-},{"../../../utils":92,"../shaders/ComplexPrimitiveShader":73,"../shaders/PrimitiveShader":74,"../shaders/TextureShader":76,"./WebGLManager":72}],71:[function(require,module,exports){
+},{"../../../utils":91,"../shaders/ComplexPrimitiveShader":72,"../shaders/PrimitiveShader":73,"../shaders/TextureShader":75,"./WebGLManager":71}],70:[function(require,module,exports){
 var WebGLManager = require('./WebGLManager'),
     utils = require('../../../utils');
 
@@ -18119,7 +18143,7 @@ WebGLMaskManager.prototype.popMask = function (maskData)
 };
 
 
-},{"../../../utils":92,"./WebGLManager":72}],72:[function(require,module,exports){
+},{"../../../utils":91,"./WebGLManager":71}],71:[function(require,module,exports){
 /**
  * @class
  * @memberof PIXI
@@ -18160,7 +18184,7 @@ WebGLManager.prototype.destroy = function ()
     this.renderer = null;
 };
 
-},{}],73:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -18220,7 +18244,7 @@ ComplexPrimitiveShader.prototype = Object.create(Shader.prototype);
 ComplexPrimitiveShader.prototype.constructor = ComplexPrimitiveShader;
 module.exports = ComplexPrimitiveShader;
 
-},{"./Shader":75}],74:[function(require,module,exports){
+},{"./Shader":74}],73:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -18281,7 +18305,7 @@ PrimitiveShader.prototype = Object.create(Shader.prototype);
 PrimitiveShader.prototype.constructor = PrimitiveShader;
 module.exports = PrimitiveShader;
 
-},{"./Shader":75}],75:[function(require,module,exports){
+},{"./Shader":74}],74:[function(require,module,exports){
 /*global console */
 var utils = require('../../../utils');
 
@@ -18839,7 +18863,7 @@ Shader.prototype._glCompile = function (type, src)
     return shader;
 };
 
-},{"../../../utils":92}],76:[function(require,module,exports){
+},{"../../../utils":91}],75:[function(require,module,exports){
 var Shader = require('./Shader');
 
 /**
@@ -18936,7 +18960,7 @@ TextureShader.defaultFragmentSrc = [
     '}'
 ].join('\n');
 
-},{"./Shader":75}],77:[function(require,module,exports){
+},{"./Shader":74}],76:[function(require,module,exports){
 var WebGLManager = require('../managers/WebGLManager');
 
 /**
@@ -18993,7 +19017,7 @@ ObjectRenderer.prototype.render = function (object) // jshint unused:false
     // render the object
 };
 
-},{"../managers/WebGLManager":72}],78:[function(require,module,exports){
+},{"../managers/WebGLManager":71}],77:[function(require,module,exports){
 /**
  * Helper class to create a quad
  * @class
@@ -19139,7 +19163,7 @@ module.exports = Quad;
 
 
 
-},{}],79:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 var math = require('../../../math'),
     utils = require('../../../utils'),
     CONST = require('../../../const'),
@@ -19445,7 +19469,7 @@ RenderTarget.prototype.destroy = function()
     this.texture = null;
 };
 
-},{"../../../const":31,"../../../math":47,"../../../utils":92,"./StencilMaskStack":80}],80:[function(require,module,exports){
+},{"../../../const":30,"../../../math":46,"../../../utils":91,"./StencilMaskStack":79}],79:[function(require,module,exports){
 /**
  * Generic Mask Stack data structure
  * @class
@@ -19479,7 +19503,7 @@ function StencilMaskStack()
 StencilMaskStack.prototype.constructor = StencilMaskStack;
 module.exports = StencilMaskStack;
 
-},{}],81:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 var math = require('../math'),
     Texture = require('../textures/Texture'),
     BaseTexture = require('../textures/BaseTexture'),
@@ -20095,7 +20119,7 @@ Image_.prototype.destroy = function (destroyTexture, destroyBaseTexture)
     this.shader = null;
 };
 
-},{"../const":31,"../display/Container":32,"../math":47,"../renderers/canvas/utils/CanvasTinter":62,"../textures/BaseTexture":85,"../textures/Texture":87,"../utils":92}],82:[function(require,module,exports){
+},{"../const":30,"../display/Container":31,"../math":46,"../renderers/canvas/utils/CanvasTinter":61,"../textures/BaseTexture":84,"../textures/Texture":86,"../utils":91}],81:[function(require,module,exports){
 var math = require('../math'),
     Texture = require('../textures/Texture'),
     Container = require('../display/Container'),
@@ -20659,7 +20683,7 @@ Sprite.fromImage = function (imageId, crossorigin, scaleMode)
     return new Sprite(Texture.fromImage(imageId, crossorigin, scaleMode));
 };
 
-},{"../const":31,"../display/Container":32,"../math":47,"../renderers/canvas/utils/CanvasTinter":62,"../textures/Texture":87,"../utils":92}],83:[function(require,module,exports){
+},{"../const":30,"../display/Container":31,"../math":46,"../renderers/canvas/utils/CanvasTinter":61,"../textures/Texture":86,"../utils":91}],82:[function(require,module,exports){
 var ObjectRenderer = require('../../renderers/webgl/utils/ObjectRenderer'),
     WebGLRenderer = require('../../renderers/webgl/WebGLRenderer'),
     CONST = require('../../const');
@@ -21127,7 +21151,7 @@ SpriteRenderer.prototype.destroy = function ()
     this.shader = null;
 };
 
-},{"../../const":31,"../../renderers/webgl/WebGLRenderer":63,"../../renderers/webgl/utils/ObjectRenderer":77}],84:[function(require,module,exports){
+},{"../../const":30,"../../renderers/webgl/WebGLRenderer":62,"../../renderers/webgl/utils/ObjectRenderer":76}],83:[function(require,module,exports){
 var Sprite = require('../sprites/Sprite'),
     Texture = require('../textures/Texture'),
     math = require('../math'),
@@ -21740,7 +21764,7 @@ Text.prototype.destroy = function (destroyBaseTexture)
     this._texture.destroy(destroyBaseTexture === undefined ? true : destroyBaseTexture);
 };
 
-},{"../const":31,"../math":47,"../sprites/Sprite":82,"../textures/Texture":87,"../utils":92}],85:[function(require,module,exports){
+},{"../const":30,"../math":46,"../sprites/Sprite":81,"../textures/Texture":86,"../utils":91}],84:[function(require,module,exports){
 var utils = require('../utils'),
     CONST = require('../const'),
     EventEmitter = require('eventemitter3');
@@ -22173,7 +22197,7 @@ BaseTexture.fromCanvas = function (canvas, scaleMode)
     return baseTexture;
 };
 
-},{"../const":31,"../utils":92,"eventemitter3":9}],86:[function(require,module,exports){
+},{"../const":30,"../utils":91,"eventemitter3":9}],85:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     Texture = require('./Texture'),
     RenderTarget = require('../renderers/webgl/utils/RenderTarget'),
@@ -22664,7 +22688,7 @@ RenderTexture.prototype.getPixel = function (x, y)
     }
 };
 
-},{"../const":31,"../math":47,"../renderers/canvas/utils/CanvasBuffer":59,"../renderers/webgl/managers/FilterManager":68,"../renderers/webgl/utils/RenderTarget":79,"./BaseTexture":85,"./Texture":87}],87:[function(require,module,exports){
+},{"../const":30,"../math":46,"../renderers/canvas/utils/CanvasBuffer":58,"../renderers/webgl/managers/FilterManager":67,"../renderers/webgl/utils/RenderTarget":78,"./BaseTexture":84,"./Texture":86}],86:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     VideoBaseTexture = require('./VideoBaseTexture'),
     TextureUvs = require('./TextureUvs'),
@@ -23070,7 +23094,7 @@ Texture.removeTextureFromCache = function (id)
 
 Texture.EMPTY = new Texture(new BaseTexture());
 
-},{"../math":47,"../utils":92,"./BaseTexture":85,"./TextureUvs":88,"./VideoBaseTexture":89,"eventemitter3":9}],88:[function(require,module,exports){
+},{"../math":46,"../utils":91,"./BaseTexture":84,"./TextureUvs":87,"./VideoBaseTexture":88,"eventemitter3":9}],87:[function(require,module,exports){
 
 /**
  * A standard object to store the Uvs of a texture
@@ -23138,7 +23162,7 @@ TextureUvs.prototype.set = function (frame, baseFrame, rotate)
     }
 };
 
-},{}],89:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 var BaseTexture = require('./BaseTexture'),
     utils = require('../utils');
 
@@ -23371,7 +23395,7 @@ function createSource(path, type)
     return source;
 }
 
-},{"../utils":92,"./BaseTexture":85}],90:[function(require,module,exports){
+},{"../utils":91,"./BaseTexture":84}],89:[function(require,module,exports){
 var CONST = require('../const'),
     EventEmitter = require('eventemitter3'),
     // Internal event used by composed emitter
@@ -23723,7 +23747,7 @@ Ticker.prototype.update = function update(currentTime)
 
 module.exports = Ticker;
 
-},{"../const":31,"eventemitter3":9}],91:[function(require,module,exports){
+},{"../const":30,"eventemitter3":9}],90:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -23785,7 +23809,7 @@ module.exports = {
     Ticker: Ticker
 };
 
-},{"./Ticker":90}],92:[function(require,module,exports){
+},{"./Ticker":89}],91:[function(require,module,exports){
 var CONST = require('../const');
 
 /**
@@ -24084,7 +24108,7 @@ var utils = module.exports = {
     BaseTextureCache: {}
 };
 
-},{"../const":31,"./pluginTarget":93,"async":1}],93:[function(require,module,exports){
+},{"../const":30,"./pluginTarget":92,"async":1}],92:[function(require,module,exports){
 /**
  * Mixins functionality to make an object have "plugins".
  *
@@ -24154,7 +24178,7 @@ module.exports = {
     }
 };
 
-},{}],94:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -24533,7 +24557,7 @@ BitmapText.prototype.validate = function()
 
 BitmapText.fonts = {};
 
-},{"../core":44}],95:[function(require,module,exports){
+},{"../core":43}],94:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -24809,7 +24833,7 @@ MovieClip.fromImages = function (images)
     return new MovieClip(textures);
 };
 
-},{"../core":44}],96:[function(require,module,exports){
+},{"../core":43}],95:[function(require,module,exports){
 var core = require('../core'),
     // a sprite use dfor rendering textures..
     tempPoint = new core.Point();
@@ -25246,7 +25270,7 @@ TilingSprite.fromImage = function (imageId, width, height, crossorigin, scaleMod
     return new TilingSprite(core.Texture.fromImage(imageId, crossorigin, scaleMode),width,height);
 };
 
-},{"../core":44}],97:[function(require,module,exports){
+},{"../core":43}],96:[function(require,module,exports){
 var core = require('../core'),
     DisplayObject = core.DisplayObject,
     _tempMatrix = new core.Matrix();
@@ -25518,7 +25542,7 @@ DisplayObject.prototype._cacheAsBitmapDestroy = function ()
     this._originalDestroy();
 };
 
-},{"../core":44}],98:[function(require,module,exports){
+},{"../core":43}],97:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -25546,7 +25570,7 @@ core.Container.prototype.getChildByName = function (name)
     return null;
 };
 
-},{"../core":44}],99:[function(require,module,exports){
+},{"../core":43}],98:[function(require,module,exports){
 var core = require('../core');
 
 /**
@@ -25575,7 +25599,7 @@ core.DisplayObject.prototype.getGlobalPosition = function (point)
     return point;
 };
 
-},{"../core":44}],100:[function(require,module,exports){
+},{"../core":43}],99:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -25596,7 +25620,7 @@ module.exports = {
     BitmapText:     require('./BitmapText')
 };
 
-},{"./BitmapText":94,"./MovieClip":95,"./TilingSprite":96,"./cacheAsBitmap":97,"./getChildByName":98,"./getGlobalPosition":99}],101:[function(require,module,exports){
+},{"./BitmapText":93,"./MovieClip":94,"./TilingSprite":95,"./cacheAsBitmap":96,"./getChildByName":97,"./getGlobalPosition":98}],100:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -25653,7 +25677,7 @@ Object.defineProperties(AsciiFilter.prototype, {
     }
 });
 
-},{"../../core":44}],102:[function(require,module,exports){
+},{"../../core":43}],101:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYFilter = require('../blur/BlurYFilter');
@@ -25754,7 +25778,7 @@ Object.defineProperties(BloomFilter.prototype, {
     }
 });
 
-},{"../../core":44,"../blur/BlurXFilter":105,"../blur/BlurYFilter":106}],103:[function(require,module,exports){
+},{"../../core":43,"../blur/BlurXFilter":104,"../blur/BlurYFilter":105}],102:[function(require,module,exports){
 var core = require('../../core');
 
 
@@ -25899,7 +25923,7 @@ Object.defineProperties(BlurDirFilter.prototype, {
     }
 });
 
-},{"../../core":44}],104:[function(require,module,exports){
+},{"../../core":43}],103:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('./BlurXFilter'),
     BlurYFilter = require('./BlurYFilter');
@@ -26009,7 +26033,7 @@ Object.defineProperties(BlurFilter.prototype, {
     }
 });
 
-},{"../../core":44,"./BlurXFilter":105,"./BlurYFilter":106}],105:[function(require,module,exports){
+},{"../../core":43,"./BlurXFilter":104,"./BlurYFilter":105}],104:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26103,7 +26127,7 @@ Object.defineProperties(BlurXFilter.prototype, {
     }
 });
 
-},{"../../core":44}],106:[function(require,module,exports){
+},{"../../core":43}],105:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26189,7 +26213,7 @@ Object.defineProperties(BlurYFilter.prototype, {
     }
 });
 
-},{"../../core":44}],107:[function(require,module,exports){
+},{"../../core":43}],106:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26219,7 +26243,7 @@ SmartBlurFilter.prototype = Object.create(core.AbstractFilter.prototype);
 SmartBlurFilter.prototype.constructor = SmartBlurFilter;
 module.exports = SmartBlurFilter;
 
-},{"../../core":44}],108:[function(require,module,exports){
+},{"../../core":43}],107:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26759,7 +26783,7 @@ Object.defineProperties(ColorMatrixFilter.prototype, {
     }
 });
 
-},{"../../core":44}],109:[function(require,module,exports){
+},{"../../core":43}],108:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26808,7 +26832,7 @@ Object.defineProperties(ColorStepFilter.prototype, {
     }
 });
 
-},{"../../core":44}],110:[function(require,module,exports){
+},{"../../core":43}],109:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26899,7 +26923,7 @@ Object.defineProperties(ConvolutionFilter.prototype, {
     }
 });
 
-},{"../../core":44}],111:[function(require,module,exports){
+},{"../../core":43}],110:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -26925,7 +26949,7 @@ CrossHatchFilter.prototype = Object.create(core.AbstractFilter.prototype);
 CrossHatchFilter.prototype.constructor = CrossHatchFilter;
 module.exports = CrossHatchFilter;
 
-},{"../../core":44}],112:[function(require,module,exports){
+},{"../../core":43}],111:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27006,7 +27030,7 @@ Object.defineProperties(DisplacementFilter.prototype, {
     }
 });
 
-},{"../../core":44}],113:[function(require,module,exports){
+},{"../../core":43}],112:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27078,7 +27102,7 @@ Object.defineProperties(DotScreenFilter.prototype, {
     }
 });
 
-},{"../../core":44}],114:[function(require,module,exports){
+},{"../../core":43}],113:[function(require,module,exports){
 var core = require('../../core');
 
 // @see https://github.com/substack/brfs/issues/25
@@ -27169,7 +27193,7 @@ Object.defineProperties(BlurYTintFilter.prototype, {
     }
 });
 
-},{"../../core":44}],115:[function(require,module,exports){
+},{"../../core":43}],114:[function(require,module,exports){
 var core = require('../../core'),
     BlurXFilter = require('../blur/BlurXFilter'),
     BlurYTintFilter = require('./BlurYTintFilter');
@@ -27338,7 +27362,7 @@ Object.defineProperties(DropShadowFilter.prototype, {
     }
 });
 
-},{"../../core":44,"../blur/BlurXFilter":105,"./BlurYTintFilter":114}],116:[function(require,module,exports){
+},{"../../core":43,"../blur/BlurXFilter":104,"./BlurYTintFilter":113}],115:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27387,7 +27411,7 @@ Object.defineProperties(GrayFilter.prototype, {
     }
 });
 
-},{"../../core":44}],117:[function(require,module,exports){
+},{"../../core":43}],116:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI filters library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -27427,7 +27451,7 @@ module.exports = {
     TwistFilter:        require('./twist/TwistFilter')
 };
 
-},{"./ascii/AsciiFilter":101,"./bloom/BloomFilter":102,"./blur/BlurDirFilter":103,"./blur/BlurFilter":104,"./blur/BlurXFilter":105,"./blur/BlurYFilter":106,"./blur/SmartBlurFilter":107,"./color/ColorMatrixFilter":108,"./color/ColorStepFilter":109,"./convolution/ConvolutionFilter":110,"./crosshatch/CrossHatchFilter":111,"./displacement/DisplacementFilter":112,"./dot/DotScreenFilter":113,"./dropshadow/DropShadowFilter":115,"./gray/GrayFilter":116,"./invert/InvertFilter":118,"./noise/NoiseFilter":119,"./normal/NormalMapFilter":120,"./pixelate/PixelateFilter":121,"./rgb/RGBSplitFilter":122,"./sepia/SepiaFilter":123,"./shockwave/ShockwaveFilter":124,"./tiltshift/TiltShiftFilter":126,"./tiltshift/TiltShiftXFilter":127,"./tiltshift/TiltShiftYFilter":128,"./twist/TwistFilter":129}],118:[function(require,module,exports){
+},{"./ascii/AsciiFilter":100,"./bloom/BloomFilter":101,"./blur/BlurDirFilter":102,"./blur/BlurFilter":103,"./blur/BlurXFilter":104,"./blur/BlurYFilter":105,"./blur/SmartBlurFilter":106,"./color/ColorMatrixFilter":107,"./color/ColorStepFilter":108,"./convolution/ConvolutionFilter":109,"./crosshatch/CrossHatchFilter":110,"./displacement/DisplacementFilter":111,"./dot/DotScreenFilter":112,"./dropshadow/DropShadowFilter":114,"./gray/GrayFilter":115,"./invert/InvertFilter":117,"./noise/NoiseFilter":118,"./normal/NormalMapFilter":119,"./pixelate/PixelateFilter":120,"./rgb/RGBSplitFilter":121,"./sepia/SepiaFilter":122,"./shockwave/ShockwaveFilter":123,"./tiltshift/TiltShiftFilter":125,"./tiltshift/TiltShiftXFilter":126,"./tiltshift/TiltShiftYFilter":127,"./twist/TwistFilter":128}],117:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27477,7 +27501,7 @@ Object.defineProperties(InvertFilter.prototype, {
     }
 });
 
-},{"../../core":44}],119:[function(require,module,exports){
+},{"../../core":43}],118:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27532,7 +27556,7 @@ Object.defineProperties(NoiseFilter.prototype, {
     }
 });
 
-},{"../../core":44}],120:[function(require,module,exports){
+},{"../../core":43}],119:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27645,7 +27669,7 @@ Object.defineProperties(NormalMapFilter.prototype, {
     }
 });
 
-},{"../../core":44}],121:[function(require,module,exports){
+},{"../../core":43}],120:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27696,7 +27720,7 @@ Object.defineProperties(PixelateFilter.prototype, {
     }
 });
 
-},{"../../core":44}],122:[function(require,module,exports){
+},{"../../core":43}],121:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27782,7 +27806,7 @@ Object.defineProperties(RGBSplitFilter.prototype, {
     }
 });
 
-},{"../../core":44}],123:[function(require,module,exports){
+},{"../../core":43}],122:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27832,7 +27856,7 @@ Object.defineProperties(SepiaFilter.prototype, {
     }
 });
 
-},{"../../core":44}],124:[function(require,module,exports){
+},{"../../core":43}],123:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -27920,7 +27944,7 @@ Object.defineProperties(ShockwaveFilter.prototype, {
     }
 });
 
-},{"../../core":44}],125:[function(require,module,exports){
+},{"../../core":43}],124:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -28045,7 +28069,7 @@ Object.defineProperties(TiltShiftAxisFilter.prototype, {
     }
 });
 
-},{"../../core":44}],126:[function(require,module,exports){
+},{"../../core":43}],125:[function(require,module,exports){
 var core = require('../../core'),
     TiltShiftXFilter = require('./TiltShiftXFilter'),
     TiltShiftYFilter = require('./TiltShiftYFilter');
@@ -28155,7 +28179,7 @@ Object.defineProperties(TiltShiftFilter.prototype, {
     }
 });
 
-},{"../../core":44,"./TiltShiftXFilter":127,"./TiltShiftYFilter":128}],127:[function(require,module,exports){
+},{"../../core":43,"./TiltShiftXFilter":126,"./TiltShiftYFilter":127}],126:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -28193,7 +28217,7 @@ TiltShiftXFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dy / d;
 };
 
-},{"./TiltShiftAxisFilter":125}],128:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":124}],127:[function(require,module,exports){
 var TiltShiftAxisFilter = require('./TiltShiftAxisFilter');
 
 /**
@@ -28231,7 +28255,7 @@ TiltShiftYFilter.prototype.updateDelta = function ()
     this.uniforms.delta.value.y = dx / d;
 };
 
-},{"./TiltShiftAxisFilter":125}],129:[function(require,module,exports){
+},{"./TiltShiftAxisFilter":124}],128:[function(require,module,exports){
 var core = require('../../core');
 // @see https://github.com/substack/brfs/issues/25
 
@@ -28316,7 +28340,7 @@ Object.defineProperties(TwistFilter.prototype, {
     }
 });
 
-},{"../../core":44}],130:[function(require,module,exports){
+},{"../../core":43}],129:[function(require,module,exports){
 (function (global){
 require('./polyfill');
 var core =  require('./core');
@@ -28354,7 +28378,7 @@ Object.assign(function(){
 },core);
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./application":27,"./core":44,"./extras":100,"./filters":117,"./loaders":132,"./mesh":138,"./polyfill":142}],131:[function(require,module,exports){
+},{"./application":26,"./core":43,"./extras":99,"./filters":116,"./loaders":131,"./mesh":137,"./polyfill":141}],130:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     core = require('../core'),
     extras = require('../extras'),
@@ -28474,7 +28498,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":44,"../extras":100,"path":2,"resource-loader":14}],132:[function(require,module,exports){
+},{"../core":43,"../extras":99,"path":2,"resource-loader":14}],131:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI loaders library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -28495,7 +28519,7 @@ module.exports = {
     Resource:           require('resource-loader').Resource
 };
 
-},{"./bitmapFontParser":131,"./loader":133,"./spritesheetParser":134,"./textureParser":135,"resource-loader":14}],133:[function(require,module,exports){
+},{"./bitmapFontParser":130,"./loader":132,"./spritesheetParser":133,"./textureParser":134,"resource-loader":14}],132:[function(require,module,exports){
 var ResourceLoader = require('resource-loader'),
     textureParser = require('./textureParser'),
     spritesheetParser = require('./spritesheetParser'),
@@ -28557,7 +28581,7 @@ var Resource = ResourceLoader.Resource;
 
 Resource.setExtensionXhrType('fnt', Resource.XHR_RESPONSE_TYPE.DOCUMENT);
 
-},{"./bitmapFontParser":131,"./spritesheetParser":134,"./textureParser":135,"resource-loader":14}],134:[function(require,module,exports){
+},{"./bitmapFontParser":130,"./spritesheetParser":133,"./textureParser":134,"resource-loader":14}],133:[function(require,module,exports){
 var Resource = require('resource-loader').Resource,
     path = require('path'),
     core = require('../core');
@@ -28640,7 +28664,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":44,"path":2,"resource-loader":14}],135:[function(require,module,exports){
+},{"../core":43,"path":2,"resource-loader":14}],134:[function(require,module,exports){
 var core = require('../core');
 
 module.exports = function ()
@@ -28659,7 +28683,7 @@ module.exports = function ()
     };
 };
 
-},{"../core":44}],136:[function(require,module,exports){
+},{"../core":43}],135:[function(require,module,exports){
 var core = require('../core'),
     tempPoint = new core.Point(),
     tempPolygon = new core.Polygon();
@@ -29140,7 +29164,7 @@ Mesh.DRAW_MODES = {
     TRIANGLES: 1
 };
 
-},{"../core":44}],137:[function(require,module,exports){
+},{"../core":43}],136:[function(require,module,exports){
 var Mesh = require('./Mesh');
 var core = require('../core');
 
@@ -29353,7 +29377,7 @@ Rope.prototype.updateTransform = function ()
     this.containerUpdateTransform();
 };
 
-},{"../core":44,"./Mesh":136}],138:[function(require,module,exports){
+},{"../core":43,"./Mesh":135}],137:[function(require,module,exports){
 /**
  * @file        Main export of the PIXI extras library
  * @author      Mat Groves <mat@goodboydigital.com>
@@ -29371,7 +29395,7 @@ module.exports = {
     MeshShader:     require('./webgl/MeshShader')
 };
 
-},{"./Mesh":136,"./Rope":137,"./webgl/MeshRenderer":139,"./webgl/MeshShader":140}],139:[function(require,module,exports){
+},{"./Mesh":135,"./Rope":136,"./webgl/MeshRenderer":138,"./webgl/MeshShader":139}],138:[function(require,module,exports){
 var core = require('../../core'),
     Mesh = require('../Mesh');
 
@@ -29585,7 +29609,7 @@ MeshRenderer.prototype.destroy = function ()
 {
 };
 
-},{"../../core":44,"../Mesh":136}],140:[function(require,module,exports){
+},{"../../core":43,"../Mesh":135}],139:[function(require,module,exports){
 var core = require('../../core');
 
 /**
@@ -29646,7 +29670,7 @@ module.exports = StripShader;
 
 core.ShaderManager.registerPlugin('meshShader', StripShader);
 
-},{"../../core":44}],141:[function(require,module,exports){
+},{"../../core":43}],140:[function(require,module,exports){
 // References:
 // https://github.com/sindresorhus/object-assign
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
@@ -29656,11 +29680,11 @@ if (!Object.assign)
     Object.assign = require('object-assign');
 }
 
-},{"object-assign":10}],142:[function(require,module,exports){
+},{"object-assign":10}],141:[function(require,module,exports){
 require('./Object.assign');
 require('./requestAnimationFrame');
 
-},{"./Object.assign":141,"./requestAnimationFrame":143}],143:[function(require,module,exports){
+},{"./Object.assign":140,"./requestAnimationFrame":142}],142:[function(require,module,exports){
 (function (global){
 // References:
 // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
@@ -29731,7 +29755,7 @@ if (!global.cancelAnimationFrame) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}]},{},[130])(130)
+},{}]},{},[129])(129)
 });
 
 

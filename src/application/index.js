@@ -8,7 +8,7 @@ module.exports = {
     factory:require('./factory'),
     tween:require('./tween'),
     Transitions:require('./Transitions'),
-    View:require('./View'),
+    // View:require('./View'),
     Panel:require('./Panel'),
     Layout:require('./Layout'),
     Controller:require('./Controller'),

@@ -1,0 +1,76 @@
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title></title>
+   <meta name="viewport" />
+	<style type="text/css">body,html,canvas,div{ padding: 0;margin: 0; } </style>
+</head>
+<body>
+
+</body>
+<script src='../bin/pixi.js'></script>
+<script>
+
+Q('App',{
+    resources:[
+        {name:'p1',url:'res/1.jpg'},
+        {name:'p2',url:'res/2.jpg'},
+        {name:'p3',url:'res/3.jpg'},
+        {name:'p4',url:'res/4.jpg'}
+    ],
+
+    launch:[
+        {name:'p5',url:'res/5.jpg'}
+    ],
+
+    listeners:{
+        progress:function(a,b){
+            // console.log(a.progress)
+        },
+        init:function(){
+
+            var touch = null;
+            var pa = Q('Panel',{
+                background:0xaabbcc,
+                width:'100w',
+                height:'100w',
+                items:[
+                    {
+                        xtype:'Rect',
+                        name:'aa',
+                        lineWidth:2,
+                        lineColor:0,
+                        width:300,
+                        height:300,
+                        color:0x003355,
+                        listener:{
+                            touchstart:function(){
+                                console.log('start');
+                            }
+                        }
+                    }
+                ]
+            });
+
+            console.log(pa)
+
+
+            this.container.addChild(pa);
+
+        
+        },
+        launch:function(){
+
+            var im =  Q('Image',{
+                texture:Q.app.getRes('p1').texture,
+                width:Q.app.width,
+                height:Q.app.height
+            });
+
+            im.anchor.x = 0.5;
+        }
+    }
+});
+
+</script>
+</html>
