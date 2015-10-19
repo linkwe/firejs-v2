@@ -1,6 +1,7 @@
 var core = require('../core'),
 Loader = require('../loaders').Loader,
 tween = require('./tween'),
+_require = require('./_require'),
 EventEmitter = require('eventemitter3');
 
 function Application(ops){
@@ -73,14 +74,13 @@ function Application(ops){
 Application.prototype = Object.create(EventEmitter.prototype);
 Application.prototype.constructor = Application;
 
-
-
 module.exports = Application ;
 
-
 Application.prototype._initApplication = function(ops){
-    this.loadResources(ops.launch,ops.resources);
+    this.loadResources(ops.launch , ops.resources , ops.require);
 };
+
+
 
 
 Application.prototype.go = function(name){
@@ -90,7 +90,7 @@ Application.prototype.go = function(name){
     
 };
 
-Application.prototype.loadResources = function(launch,resources){
+Application.prototype.loadResources = function(launch,resources,__require){
 
     var me = this,loader = this.loader ;
 
@@ -98,19 +98,35 @@ Application.prototype.loadResources = function(launch,resources){
         me.emit( 'progress', a, b );
     });
 
+    //预先加载，作为启动画面或者loading动画
     if(launch){
+
         loader.add(launch).load(function(a,b){
+
             me.emit('launch',a,b);
+
         });
+
     }
 
+    //预先加载，作为启动画面
     if(resources){
         loader.add(resources).load(function(a,b){
-            me.emit('init',a,b);
+            console.log('loader.add');
+
+            if(__require){
+                console.log(1)
+                _require(__require,function(){me.emit('init',a,b)});
+            }else{console.log(1);me.emit('init',a,b)}
         });
+
+    }else{
+        me.emit('init');
     }
 
-    if(!resources) me.emit('init');
+
+
+
 
 };
 

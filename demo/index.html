@@ -11,6 +11,13 @@
 <script src='../bin/pixi.js'></script>
 <script>
 
+// console.log(Q.require)
+Q.require([{src:'js/v1.js',cak:function(a){
+    console.log(a);
+}}],function(){
+    console.log('sdfsdf')
+});
+
 Q('App',{
     resources:[
         {name:'p1',url:'res/1.jpg'},
@@ -19,16 +26,33 @@ Q('App',{
         {name:'p4',url:'res/4.jpg'}
     ],
 
+    require:[
+        {src:'js/v1.js',cak:function(a){
+            console.log(a);
+        }}
+    ],
+
     launch:[
         {name:'p5',url:'res/5.jpg'}
     ],
 
     listeners:{
         progress:function(a,b){
-            // console.log(a.progress)
+            // console.log(a)
         },
         init:function(){
+            //需要处理的问题是，touchhover事件
+            console.log('init');
 
+            // var load = new Q.loaders.Loader();
+
+            // console.log(load)
+
+            // load.on('progress',function(a,b){
+            //    console.log(a,b);
+            // });
+
+            // load.emit('progress',1,2);
 
             var touch = null;
 
@@ -154,44 +178,21 @@ Q('App',{
                 fillAlpha:0.5
             });
 
-re.x = pa.width-15;
-re.re = pa.height/ bou.height;
+            re.x = pa.width-15;
+            re.re = pa.height/ bou.height;
 
-pa.tiao = re;
-pa.ty = 0;
-pa.vy = 0;
-pa.hc = false;
-pa.ha = false;
+            pa.tiao = re;
+            pa.ty = 0;
+            pa.vy = 0;
+            pa.hc = false;
+            pa.ha = false;
 
-
-pa.spring = 0.03;
-pa.friction = 0.88;
-
-
-
-function A()
-{
-    // if(this instanceof A)
-    console.log(this instanceof arguments.callee);
-    // console.log(arguments.callee);
-}
-
-function B(){
-    A.call(this);
-}
-
-B.prototype = Object.create(A.prototype);
-B.prototype.constructor = B;
-
-new B();
-new A();
-
-
-
-console.log(pa.height, bou.height);
+            pa.spring = 0.03;
+            pa.friction = 0.88;
 
             pa.addChild(re);
             pa.y = '20w';
+
 /*
 vx += (targetX - object.x) * spring;
 vy += (targetY - object.y) * spring;
@@ -322,6 +323,8 @@ Q.ticker.shared.add(function(_){
 
         },
         launch:function(){
+
+            console.log('launch');
 
             var im =  Q('Image',{
                 texture:Q.app.getRes('p1').texture,

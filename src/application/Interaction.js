@@ -261,6 +261,7 @@ InteractionManager.prototype.addEvents = function ()
     {
         return;
     }
+    console.log('InteractionManager.prototype.addEvents');
 
     core.ticker.shared.add(this.update, this);
 
@@ -294,7 +295,7 @@ InteractionManager.prototype.removeEvents = function ()
         return;
     }
 
-    // core.ticker.shared.remove(this.update);
+    core.ticker.shared.remove(this.update);
 
     if (window.navigator.msPointerEnabled)
     {
@@ -327,7 +328,7 @@ InteractionManager.prototype.removeEvents = function ()
 InteractionManager.prototype.update = function (deltaTime)
 {
     this._deltaTime += deltaTime;
-
+    console.log(223444)
     if (this._deltaTime < this.interactionFrequency)
     {
         return;
@@ -339,6 +340,7 @@ InteractionManager.prototype.update = function (deltaTime)
     {
         return;
     }
+
 
     // if the user move the mouse this check has already been dfone using the mouse move!
     if(this.didMove)
@@ -360,9 +362,12 @@ InteractionManager.prototype.update = function (deltaTime)
 
         this.active = false;
         return ;
+
     }
 
     this.cursor = 'inherit';
+
+    console.log(223444)
 
     this.renderer._lastObjectRendered.interaction('eventend',this.eventData);
 

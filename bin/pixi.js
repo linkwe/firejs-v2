@@ -4637,6 +4637,7 @@ module.exports={
 var core = require('../core'),
 Loader = require('../loaders').Loader,
 tween = require('./tween'),
+_require = require('./_require'),
 EventEmitter = require('eventemitter3');
 
 function Application(ops){
@@ -4709,14 +4710,13 @@ function Application(ops){
 Application.prototype = Object.create(EventEmitter.prototype);
 Application.prototype.constructor = Application;
 
-
-
 module.exports = Application ;
 
-
 Application.prototype._initApplication = function(ops){
-    this.loadResources(ops.launch,ops.resources);
+    this.loadResources(ops.launch , ops.resources , ops.require);
 };
+
+
 
 
 Application.prototype.go = function(name){
@@ -4726,7 +4726,7 @@ Application.prototype.go = function(name){
     
 };
 
-Application.prototype.loadResources = function(launch,resources){
+Application.prototype.loadResources = function(launch,resources,__require){
 
     var me = this,loader = this.loader ;
 
@@ -4734,19 +4734,35 @@ Application.prototype.loadResources = function(launch,resources){
         me.emit( 'progress', a, b );
     });
 
+    //预先加载，作为启动画面或者loading动画
     if(launch){
+
         loader.add(launch).load(function(a,b){
+
             me.emit('launch',a,b);
+
         });
+
     }
 
+    //预先加载，作为启动画面
     if(resources){
         loader.add(resources).load(function(a,b){
-            me.emit('init',a,b);
+            console.log('loader.add');
+
+            if(__require){
+                console.log(1)
+                _require(__require,function(){me.emit('init',a,b)});
+            }else{console.log(1);me.emit('init',a,b)}
         });
+
+    }else{
+        me.emit('init');
     }
 
-    if(!resources) me.emit('init');
+
+
+
 
 };
 
@@ -4972,7 +4988,7 @@ var App = _class({
 */
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"../core":43,"../loaders":131,"./tween":29,"eventemitter3":9}],19:[function(require,module,exports){
+},{"../core":43,"../loaders":131,"./_require":24,"./tween":29,"eventemitter3":9}],19:[function(require,module,exports){
 var utils = require('../core').utils;
 
 
@@ -5287,6 +5303,7 @@ InteractionManager.prototype.addEvents = function ()
     {
         return;
     }
+    console.log('InteractionManager.prototype.addEvents');
 
     core.ticker.shared.add(this.update, this);
 
@@ -5320,7 +5337,7 @@ InteractionManager.prototype.removeEvents = function ()
         return;
     }
 
-    // core.ticker.shared.remove(this.update);
+    core.ticker.shared.remove(this.update);
 
     if (window.navigator.msPointerEnabled)
     {
@@ -5353,7 +5370,7 @@ InteractionManager.prototype.removeEvents = function ()
 InteractionManager.prototype.update = function (deltaTime)
 {
     this._deltaTime += deltaTime;
-
+    console.log(223444)
     if (this._deltaTime < this.interactionFrequency)
     {
         return;
@@ -5389,6 +5406,8 @@ InteractionManager.prototype.update = function (deltaTime)
     }
 
     this.cursor = 'inherit';
+
+    console.log(223444)
 
     this.renderer._lastObjectRendered.interaction('eventend',this.eventData);
 
@@ -6314,6 +6333,20 @@ Transitions.prototype.switch = function(ops){
 core.WebGLRenderer.registerPlugin(  'transitions' , Transitions );
 core.CanvasRenderer.registerPlugin( 'transitions' , Transitions );
 },{"../core":43,"./tween":29}],24:[function(require,module,exports){
+/*+function(_global){
+
+var m = {
+    require:function(){
+
+    }
+};
+
+_global.module = m;
+
+}(this);*/
+    
+
+
 var utils = require('../core').utils;
 
 var _require = function(){
@@ -6323,56 +6356,56 @@ var _require = function(){
     var exe = function(_a){
 
         utils.loadScript(_a.src,function(){
-
             var _o = modules.length>1 ? modules:modules.length == 1 && modulesmodules[0] || null;
-
             modules = [];
-
             _a.name&&(ms[_a.name] = _o);
-
             _a.cak&&_a.cak(_o);
 
         });
     };
 
-    return {
+    var load = function( options , complete , progress){
 
-        load:function( options, progress, complete ){
-
-            if( Array.isArray(options) ){
-                var l = options.length , count = 0 , syn = [] , other = [] , i = 0 ;
-                options.forEach(function(m){m.syn?syn.push(m):other.push(m)});
-                !function req(_i){
-                    var me,_cak;
-                    if(i<syn.length){
-                        me = syn[_i];
-                        _cak = me.cak;
-                        me.cak = function(op){
-                            _cak(op);
+        if( Array.isArray(options) ){
+            var l = options.length , count = 0 , syn = [] , other = [] , i = 0 ;
+            options.forEach(function(m){m.syn?syn.push(m):other.push(m)});
+            !function req(_i){
+                var me,_cak;
+                if(i<syn.length){
+                    me = syn[_i];
+                    _cak = me.cak;
+                    me.cak = function(op){
+                        _cak&&_cak(op);
+                        count++;
+                        progress&&progress({src:me.src,idx:count,length:l});
+                        // if(complete&&count>=l)complete();
+                        req(++i);
+                    };
+                    exe(me);
+                }else if(other.length>0){
+                    other.forEach(function(m){
+                        var __cak = m.cak;
+                        m.cak = function(op){
                             count++;
-                            progress&&progress({src:me.src,idx:count,length:l});
-                            req(++i);
-                        };
-                        exe(me);
-                    }else if(other.length>0){
-                        other.forEach(function(m){
-                            var __cak = me.cak;
-                            me.cak = function(op){
-                                count++;
-                                progress&&progress({src:me.src,idx:count,length:l});
-                                __cak(op);
-                            }
-                        });
-                    }else{ complete&&complete() }
-                }(i);
+                            progress&&progress({src:m.src,idx:count,length:l});
+                            __cak&&__cak(op);
+                            if(complete&&count>=l)complete();
+                        }
+                        exe(m);
 
-            }else{exe(options)}
-        },
+                    });
+                }else{ complete&&complete() }
+            }(i);
 
-        getmodule:function(name){
-            return ms[name];
-        }
+        }else{exe(options)}
+    };
+
+
+    load.getmodules = function(name){
+        return ms[name];
     }
+    return load
+
 }();
 
 module.exports = _require;
